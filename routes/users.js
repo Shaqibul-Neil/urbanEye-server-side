@@ -29,5 +29,19 @@ module.exports = (collections) => {
       return responseSend(res, 400, "Failed to create user ");
     }
   });
+
+  //get single user info
+  router.get("/:email", async (req, res) => {
+    try {
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await userCollection.findOne(query);
+      return responseSend(res, 200, "Successfully fetched user data", {
+        user: result,
+      });
+    } catch (error) {
+      return responseSend(res, 400, "Failed to fetch user data");
+    }
+  });
   return router;
 };
