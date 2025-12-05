@@ -13,6 +13,7 @@ async function run() {
   try {
     const collections = await connectDB();
     //Routes
+    app.use("/users", require("./routes/users")(collections));
   } catch (err) {
     console.error("Database connection failed:", err.message);
   } finally {
