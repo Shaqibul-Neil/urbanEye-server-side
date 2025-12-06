@@ -85,7 +85,7 @@ module.exports = (collections) => {
   });
 
   //get all payments by user
-  router.get("/:email", verifyFireBaseToken, async (req, res) => {
+  router.get("/", verifyFireBaseToken, async (req, res) => {
     try {
       const email = req.decoded_email;
       const query = { citizenEmail: email };
