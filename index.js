@@ -15,6 +15,7 @@ async function run() {
     //Routes
     app.use("/users", require("./routes/users")(collections));
     app.use("/issues", require("./routes/issues")(collections));
+    app.use("/payments", require("./routes/payments")(collections));
   } catch (err) {
     console.error("Database connection failed:", err.message);
   } finally {
