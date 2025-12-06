@@ -1,6 +1,7 @@
 const express = require("express");
 const responseSend = require("../utilities/responseSend");
 const verifyFireBaseToken = require("../middlewares/verifyFirebaseToken");
+const verifyAdmin = require("../middlewares/verifyAdmin");
 const { ObjectId } = require("mongodb");
 module.exports = (collections) => {
   const router = express.Router();
@@ -33,7 +34,7 @@ module.exports = (collections) => {
   });
 
   //get single user info
-  router.get("/:email", async (req, res) => {
+  router.get("/:email", verifyFireBaseToken, async (req, res) => {
     try {
       const email = req.params.email;
       const query = { email: email };
@@ -48,11 +49,12 @@ module.exports = (collections) => {
 
   //----------------ADMIN ACTIONS------------------
   //get all user for admin
-  router.get("/", verifyFireBaseToken, async (req, res) => {
-    try {
-      const email = req.decoded_email;
-      const user = await userCollection.findOne({ email });
-      if (user.role === "admin") {
+  router.get(
+    "/",
+    verifyFireBaseToken,
+    verifyAdmin(collections),
+    async (req, res) => {
+      try {
         const result = await userCollection
           .find({ role: "citizen" })
           .sort({ createdAt: -1 })
@@ -60,44 +62,51 @@ module.exports = (collections) => {
         return responseSend(res, 200, "Successfully fetched users data", {
           users: result,
         });
-      } else {
-        return responseSend(res, 403, "You do not have permission to see this");
+      } catch (error) {
+        return responseSend(res, 400, "Failed to fetch user data");
       }
-    } catch (error) {
-      return responseSend(res, 400, "Failed to fetch user data");
     }
-  });
+  );
 
   //admin block unblock user
-  router.patch("/:id/status", verifyFireBaseToken, async (req, res) => {
-    try {
-      const id = req.params.id;
-      const userInfo = req.body;
-      console.log(userInfo);
-      const query = { _id: new ObjectId(id) };
-      const updateUser = { $set: { isBlocked: userInfo.status } };
-      const result = await userCollection.updateOne(query, updateUser);
-      return responseSend(res, 201, "User updated successfully", {
-        user: result,
-      });
-    } catch (error) {
-      return responseSend(res, 400, "Failed to update user information");
+  router.patch(
+    "/:id/status",
+    verifyFireBaseToken,
+    verifyAdmin(collections),
+    async (req, res) => {
+      try {
+        const id = req.params.id;
+        const userInfo = req.body;
+        const query = { _id: new ObjectId(id) };
+        const updateUser = { $set: { isBlocked: userInfo.status } };
+        const result = await userCollection.updateOne(query, updateUser);
+        return responseSend(res, 201, "User updated successfully", {
+          user: result,
+        });
+      } catch (error) {
+        return responseSend(res, 400, "Failed to update user information");
+      }
     }
-  });
+  );
 
   //getting user role
-  router.get("/:email/role", async (req, res) => {
-    try {
-      const email = req.params.email;
-      const query = { email };
-      const user = await userCollection.findOne(query);
-      return responseSend(res, 200, "Successfully fetched user role data", {
-        role: user?.role || "citizen",
-      });
-    } catch (error) {
-      return responseSend(res, 400, "Failed to fetch user role data");
+  router.get(
+    "/:email/role",
+    verifyFireBaseToken,
+    verifyAdmin(collections),
+    async (req, res) => {
+      try {
+        const email = req.params.email;
+        const query = { email };
+        const user = await userCollection.findOne(query);
+        return responseSend(res, 200, "Successfully fetched user role data", {
+          role: user?.role || "citizen",
+        });
+      } catch (error) {
+        return responseSend(res, 400, "Failed to fetch user role data");
+      }
     }
-  });
+  );
 
   return router;
 };

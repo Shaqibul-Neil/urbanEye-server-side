@@ -73,18 +73,18 @@ module.exports = (collections) => {
           transactionId: session.payment_intent,
         });
       } else {
-        return responseSend(res, 200, "Payment not completed", {});
+        return responseSend(res, 400, "Payment not completed", {});
       }
     } catch (error) {
       return responseSend(
         res,
-        200,
-        "Failed to Update Parcel Info with Payment Information"
+        500,
+        "Failed to Update user Info with Payment Information"
       );
     }
   });
 
-  //get all payments by user
+  //get all payments by citizen
   router.get("/", verifyFireBaseToken, async (req, res) => {
     try {
       const email = req.decoded_email;
