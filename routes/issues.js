@@ -53,10 +53,10 @@ module.exports = (collections) => {
   });
 
   //get all issue from db
-  router.get("/", async (req, res) => {
+  router.get("/:email", async (req, res) => {
     try {
+      const email = req.params.email;
       const query = {};
-      const { email } = req.query;
       if (email) query.userEmail = email;
       const result = await issueCollection.find(query).toArray();
       return responseSend(res, 200, "Successfully fetched issue data", {
@@ -71,10 +71,8 @@ module.exports = (collections) => {
   router.patch("/:id", async (req, res) => {
     try {
       const id = req.params.id;
-      console.log(id);
       const query = { _id: new ObjectId(id) };
       const issueInfo = req.body;
-      console.log(issueInfo);
       const updatedIssue = {
         $set: {
           updatedAt: new Date(),
@@ -86,7 +84,6 @@ module.exports = (collections) => {
         },
         $inc: { totalUpdate: 1 },
       };
-      console.log(updatedIssue);
       const result = await issueCollection.updateOne(query, updatedIssue);
       responseSend(res, 201, "Successfully updated the issue", {
         issue: result,
