@@ -1,6 +1,7 @@
 const express = require("express");
 const responseSend = require("../utilities/responseSend");
 const verifyFireBaseToken = require("../middlewares/verifyFirebaseToken");
+const { ObjectId } = require("mongodb");
 module.exports = (collections) => {
   const router = express.Router();
   const { userCollection } = collections;
@@ -53,7 +54,7 @@ module.exports = (collections) => {
       const user = await userCollection.findOne({ email });
       if (user.role === "admin") {
         const result = await userCollection
-          .find()
+          .find({ role: "citizen" })
           .sort({ createdAt: -1 })
           .toArray();
         return responseSend(res, 200, "Successfully fetched users data", {
@@ -64,6 +65,22 @@ module.exports = (collections) => {
       }
     } catch (error) {
       return responseSend(res, 400, "Failed to fetch user data");
+    }
+  });
+
+  //admin block unblock user
+  router.patch("/:id/status", verifyFireBaseToken, async (req, res) => {
+    try {
+      const id = req.params.id;
+      const statusInfo = req.body;
+      const query = { _id: new ObjectId(id) };
+      const updateUser = { $set: { isBlocked: statusInfo } };
+      const result = await userCollection.updateOne(query, updateUser);
+      return responseSend(res, 201, "User updated successfully", {
+        user: result,
+      });
+    } catch (error) {
+      return responseSend(res, 400, "Failed to update user information");
     }
   });
   return router;
