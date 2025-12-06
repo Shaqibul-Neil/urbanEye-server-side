@@ -7,7 +7,9 @@ module.exports = (collections) => {
   const router = express.Router();
   const { userCollection, issueCollection } = collections;
 
-  //save an issue to db
+  //----------------CITIZEN ACTIONS------------------
+
+  //save an issue to db by a citizen
   router.post("/", verifyFireBaseToken, async (req, res) => {
     try {
       const issueInfo = req.body;
@@ -55,15 +57,19 @@ module.exports = (collections) => {
     }
   });
 
-  //get all issue from db
+  //get all issue from db via role
   router.get("/", verifyFireBaseToken, async (req, res) => {
     try {
-      console.log("Decoded Email:", req.decoded_email);
       const email = req.decoded_email;
-      const query = {};
-      if (email) query.userEmail = email;
+      //find the user
+      const user = await userCollection.findOne({ email });
+      let query = {};
+      if (user.role === "citizen") {
+        query.userEmail = email;
+      } else if (user.role === "admin") {
+        query = {};
+      }
       const result = await issueCollection.find(query).toArray();
-      console.log("Fetched Issues:", result);
       return responseSend(res, 200, "Successfully fetched issue data", {
         issue: result,
       });
@@ -72,7 +78,7 @@ module.exports = (collections) => {
     }
   });
 
-  //update an issue by user
+  //update an issue by citizen
   router.patch("/:id", verifyFireBaseToken, async (req, res) => {
     try {
       const id = req.params.id;
@@ -123,5 +129,9 @@ module.exports = (collections) => {
       return responseSend(res, 400, "Failed to delete issue");
     }
   });
+
+  //----------------ADMIN ACTIONS------------------
+
+  //get all issues from db for an admin
   return router;
 };

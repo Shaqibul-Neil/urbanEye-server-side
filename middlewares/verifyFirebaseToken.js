@@ -3,7 +3,6 @@ const admin = require("../config/firebase");
 
 const verifyFireBaseToken = async (req, res, next) => {
   const token = req.headers?.authorization?.split(" ")[1];
-  console.log(token);
   if (!token) return responseSend(res, 401, "Unauthorized Access");
   try {
     const decoded = await admin.auth().verifyIdToken(token);
