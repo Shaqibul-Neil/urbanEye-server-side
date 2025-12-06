@@ -1,6 +1,7 @@
 const express = require("express");
 const responseSend = require("../utilities/responseSend");
 const generateTrackingId = require("../utilities/generateTrackingId");
+const { ObjectId } = require("mongodb");
 module.exports = (collections) => {
   const router = express.Router();
   const { userCollection, issueCollection } = collections;
@@ -50,6 +51,7 @@ module.exports = (collections) => {
       return responseSend(res, 400, "Failed to create issue");
     }
   });
+
   //get all issue from db
   router.get("/", async (req, res) => {
     try {
@@ -62,6 +64,49 @@ module.exports = (collections) => {
       });
     } catch (error) {
       return responseSend(res, 400, "Failed to fetch issue data");
+    }
+  });
+
+  //update an issue by user
+  router.patch("/:id", async (req, res) => {
+    try {
+      const id = req.params.id;
+      console.log(id);
+      const query = { _id: new ObjectId(id) };
+      const issueInfo = req.body;
+      console.log(issueInfo);
+      const updatedIssue = {
+        $set: {
+          updatedAt: new Date(),
+          title: issueInfo.title,
+          description: issueInfo.description,
+          category: issueInfo.category,
+          location: issueInfo.location,
+          photoURL: issueInfo.photoURL,
+        },
+        $inc: { totalUpdate: 1 },
+      };
+      console.log(updatedIssue);
+      const result = await issueCollection.updateOne(query, updatedIssue);
+      responseSend(res, 201, "Successfully updated the issue", {
+        issue: result,
+      });
+    } catch (error) {
+      return responseSend(res, 400, "Failed to update issue");
+    }
+  });
+
+  //delete an issue by user
+  router.delete("/:id", async (req, res) => {
+    try {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await issueCollection.deleteOne(query);
+      responseSend(res, 200, "Successfully deleted the issue", {
+        issue: result,
+      });
+    } catch (error) {
+      return responseSend(res, 400, "Failed to delete issue");
     }
   });
   return router;
