@@ -6,7 +6,7 @@ module.exports = (collections) => {
   const router = express.Router();
   const { userCollection } = collections;
 
-  //save an user to db
+  //save an user to db on signup
   router.post("/", async (req, res) => {
     try {
       const user = req.body;
@@ -72,9 +72,10 @@ module.exports = (collections) => {
   router.patch("/:id/status", verifyFireBaseToken, async (req, res) => {
     try {
       const id = req.params.id;
-      const statusInfo = req.body;
+      const userInfo = req.body;
+      console.log(userInfo);
       const query = { _id: new ObjectId(id) };
-      const updateUser = { $set: { isBlocked: statusInfo } };
+      const updateUser = { $set: { isBlocked: userInfo.status } };
       const result = await userCollection.updateOne(query, updateUser);
       return responseSend(res, 201, "User updated successfully", {
         user: result,
@@ -83,5 +84,20 @@ module.exports = (collections) => {
       return responseSend(res, 400, "Failed to update user information");
     }
   });
+
+  //getting user role
+  router.get("/:email/role", async (req, res) => {
+    try {
+      const email = req.params.email;
+      const query = { email };
+      const user = await userCollection.findOne(query);
+      return responseSend(res, 200, "Successfully fetched user role data", {
+        role: user?.role || "citizen",
+      });
+    } catch (error) {
+      return responseSend(res, 400, "Failed to fetch user role data");
+    }
+  });
+
   return router;
 };

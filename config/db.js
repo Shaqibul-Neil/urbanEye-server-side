@@ -15,6 +15,7 @@ async function connectDB() {
   const db = client.db(dbName);
   return {
     userCollection: db.collection("users"),
+    staffCollection: db.collection("staff"),
     issueCollection: db.collection("issues"),
     paymentCollection: db.collection("payments"),
   };

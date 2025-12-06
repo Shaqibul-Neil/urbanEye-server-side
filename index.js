@@ -14,6 +14,7 @@ async function run() {
     const collections = await connectDB();
     //Routes
     app.use("/users", require("./routes/users")(collections));
+    app.use("/staff", require("./routes/staff")(collections));
     app.use("/issues", require("./routes/issues")(collections));
     app.use("/payments", require("./routes/payments")(collections));
   } catch (err) {
