@@ -56,12 +56,14 @@ module.exports = (collections) => {
   });
 
   //get all issue from db
-  router.get("/:email", verifyFireBaseToken, async (req, res) => {
+  router.get("/", verifyFireBaseToken, async (req, res) => {
     try {
+      console.log("Decoded Email:", req.decoded_email);
       const email = req.decoded_email;
       const query = {};
       if (email) query.userEmail = email;
       const result = await issueCollection.find(query).toArray();
+      console.log("Fetched Issues:", result);
       return responseSend(res, 200, "Successfully fetched issue data", {
         issue: result,
       });
