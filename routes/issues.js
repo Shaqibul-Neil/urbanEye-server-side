@@ -2,16 +2,19 @@ const express = require("express");
 const responseSend = require("../utilities/responseSend");
 const generateTrackingId = require("../utilities/generateTrackingId");
 const { ObjectId } = require("mongodb");
+const verifyFireBaseToken = require("../middlewares/verifyFirebaseToken");
 module.exports = (collections) => {
   const router = express.Router();
   const { userCollection, issueCollection } = collections;
 
   //save an issue to db
-  router.post("/", async (req, res) => {
+  router.post("/", verifyFireBaseToken, async (req, res) => {
     try {
       const issueInfo = req.body;
       //finding the user
       const userEmail = issueInfo.userEmail;
+      if (userEmail !== req.decoded_email)
+        return responseSend(res, 403, "Forbidden: You cannot edit this issue");
       const user = await userCollection.findOne({ email: userEmail });
       if (!user) return responseSend(res, 404, "User not found");
       console.log("user", user);
@@ -53,9 +56,9 @@ module.exports = (collections) => {
   });
 
   //get all issue from db
-  router.get("/:email", async (req, res) => {
+  router.get("/:email", verifyFireBaseToken, async (req, res) => {
     try {
-      const email = req.params.email;
+      const email = req.decoded_email;
       const query = {};
       if (email) query.userEmail = email;
       const result = await issueCollection.find(query).toArray();
@@ -68,10 +71,14 @@ module.exports = (collections) => {
   });
 
   //update an issue by user
-  router.patch("/:id", async (req, res) => {
+  router.patch("/:id", verifyFireBaseToken, async (req, res) => {
     try {
       const id = req.params.id;
+      // check issue ownership
       const query = { _id: new ObjectId(id) };
+      const fetchedIssue = await issueCollection.findOne(query);
+      if (fetchedIssue.userEmail !== req.decoded_email)
+        return responseSend(res, 403, "Forbidden: You cannot edit this issue");
       const issueInfo = req.body;
       const updatedIssue = {
         $set: {
@@ -94,10 +101,18 @@ module.exports = (collections) => {
   });
 
   //delete an issue by user
-  router.delete("/:id", async (req, res) => {
+  router.delete("/:id", verifyFireBaseToken, async (req, res) => {
     try {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
+      // check issue ownership
+      const fetchedIssue = await issueCollection.findOne(query);
+      if (fetchedIssue.userEmail !== req.decoded_email)
+        return responseSend(
+          res,
+          403,
+          "Forbidden: You cannot delete this issue"
+        );
       const result = await issueCollection.deleteOne(query);
       responseSend(res, 200, "Successfully deleted the issue", {
         issue: result,

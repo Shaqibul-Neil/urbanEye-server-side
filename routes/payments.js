@@ -3,6 +3,7 @@ const express = require("express");
 const responseSend = require("../utilities/responseSend");
 
 const { ObjectId } = require("mongodb");
+const verifyFireBaseToken = require("../middlewares/verifyFirebaseToken");
 module.exports = (collections) => {
   const router = express.Router();
   const { userCollection, issueCollection, paymentCollection } = collections;
@@ -84,9 +85,9 @@ module.exports = (collections) => {
   });
 
   //get all payments by user
-  router.get("/:email", async (req, res) => {
+  router.get("/:email", verifyFireBaseToken, async (req, res) => {
     try {
-      const email = req.params.email;
+      const email = req.decoded_email;
       const query = { citizenEmail: email };
 
       const result = await paymentCollection
