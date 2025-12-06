@@ -1,5 +1,6 @@
 const express = require("express");
 const responseSend = require("../utilities/responseSend");
+const verifyFireBaseToken = require("../middlewares/verifyFirebaseToken");
 module.exports = (collections) => {
   const router = express.Router();
   const { userCollection } = collections;
@@ -39,6 +40,28 @@ module.exports = (collections) => {
       return responseSend(res, 200, "Successfully fetched user data", {
         user: result,
       });
+    } catch (error) {
+      return responseSend(res, 400, "Failed to fetch user data");
+    }
+  });
+
+  //----------------ADMIN ACTIONS------------------
+  //get all user for admin
+  router.get("/", verifyFireBaseToken, async (req, res) => {
+    try {
+      const email = req.decoded_email;
+      const user = await userCollection.findOne({ email });
+      if (user.role === "admin") {
+        const result = await userCollection
+          .find()
+          .sort({ createdAt: -1 })
+          .toArray();
+        return responseSend(res, 200, "Successfully fetched users data", {
+          users: result,
+        });
+      } else {
+        return responseSend(res, 403, "You do not have permission to see this");
+      }
     } catch (error) {
       return responseSend(res, 400, "Failed to fetch user data");
     }

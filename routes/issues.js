@@ -69,7 +69,10 @@ module.exports = (collections) => {
       } else if (user.role === "admin") {
         query = {};
       }
-      const result = await issueCollection.find(query).toArray();
+      const result = await issueCollection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .toArray();
       return responseSend(res, 200, "Successfully fetched issue data", {
         issue: result,
       });
