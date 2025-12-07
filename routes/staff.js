@@ -49,15 +49,20 @@ module.exports = (collections) => {
     }
   );
 
-  //get all staff for admin
+  //get all staff for admin and based on work status
   router.get(
     "/",
     verifyFireBaseToken,
     verifyAdmin(collections),
     async (req, res) => {
       try {
+        const { workStatus } = req.query;
+        const query = {};
+        if (workStatus) {
+          query.workStatus = workStatus;
+        }
         const result = await staffCollection
-          .find()
+          .find(query)
           .sort({ createdAt: -1 })
           .toArray();
         return responseSend(res, 200, "Successfully fetched staff data", {
@@ -116,5 +121,7 @@ module.exports = (collections) => {
       }
     }
   );
+
+  //get all available staffs
   return router;
 };
