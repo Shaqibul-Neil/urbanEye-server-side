@@ -18,12 +18,16 @@ module.exports = (collections) => {
     verifyAdmin(collections),
     async (req, res) => {
       try {
-        const { name, email, password, photoURL } = req.body;
+        const { name, email, password, photoURL, phone } = req.body;
 
         //create user in firebase
-        const newUser = await admin
-          .auth()
-          .createUser({ displayName: name, email, password, photoURL });
+        const newUser = await admin.auth().createUser({
+          displayName: name,
+          email,
+          password,
+          photoURL,
+          phoneNumber: phone,
+        });
         //assign staff role
         await admin.auth().setCustomUserClaims(newUser.uid, { role: "staff" });
         //save in database
@@ -31,6 +35,7 @@ module.exports = (collections) => {
           uid: newUser.uid,
           staffName: name,
           staffEmail: email,
+          staffPhone: phone,
           staffPhotoURL: photoURL,
           role: "staff",
           createdAt: new Date(),
@@ -86,6 +91,8 @@ module.exports = (collections) => {
       }
     }
   );
+
+  //update a staff by admin
 
   return router;
 };
