@@ -37,8 +37,13 @@ module.exports = (collections) => {
   router.get("/:email", verifyFireBaseToken, async (req, res) => {
     try {
       const email = req.params.email;
-      const query = { email: email };
-      const result = await userCollection.findOne(query);
+      // check staff collection first
+      const staff = await staffCollection.findOne({ staffEmail: email });
+      if (staff) {
+        return responseSend(res, 200, "Staff data fetched", { user: staff });
+      }
+      // check user collection
+      const result = await userCollection.findOne({ email: email });
       return responseSend(res, 200, "Successfully fetched user data", {
         user: result,
       });
