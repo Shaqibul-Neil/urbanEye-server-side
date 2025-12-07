@@ -5,7 +5,7 @@ const verifyAdmin = require("../middlewares/verifyAdmin");
 const { ObjectId } = require("mongodb");
 module.exports = (collections) => {
   const router = express.Router();
-  const { userCollection } = collections;
+  const { userCollection, staffCollection } = collections;
 
   //save an user to db on signup
   router.post("/", async (req, res) => {
@@ -90,23 +90,24 @@ module.exports = (collections) => {
   );
 
   //getting user role
-  router.get(
-    "/:email/role",
-    verifyFireBaseToken,
-    verifyAdmin(collections),
-    async (req, res) => {
-      try {
-        const email = req.params.email;
-        const query = { email };
-        const user = await userCollection.findOne(query);
-        return responseSend(res, 200, "Successfully fetched user role data", {
-          role: user?.role || "citizen",
-        });
-      } catch (error) {
-        return responseSend(res, 400, "Failed to fetch user role data");
+  router.get("/:email/role", verifyFireBaseToken, async (req, res) => {
+    try {
+      const email = req.params.email;
+      console.log(email);
+      //check in staff collection to get the role first so that staff can easily login without by default getting the citizen role
+      const staff = await staffCollection.findOne({ staffEmail: email });
+      if (staff) {
+        return responseSend(res, 200, "Staff role found", { role: "staff" });
       }
+      //if no staff found then citizen
+      const user = await userCollection.findOne({ email: email });
+      return responseSend(res, 200, "Successfully fetched user role data", {
+        role: user?.role || "citizen",
+      });
+    } catch (error) {
+      return responseSend(res, 400, "Failed to fetch user role data");
     }
-  );
+  });
 
   return router;
 };
