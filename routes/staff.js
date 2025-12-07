@@ -4,6 +4,7 @@ const admin = require("../config/firebase");
 const responseSend = require("../utilities/responseSend");
 const verifyFireBaseToken = require("../middlewares/verifyFirebaseToken");
 const verifyAdmin = require("../middlewares/verifyAdmin");
+const { ObjectId } = require("mongodb");
 
 module.exports = (collections) => {
   const router = express.Router();
@@ -43,6 +44,7 @@ module.exports = (collections) => {
       }
     }
   );
+
   //get all staff for admin
   router.get(
     "/",
@@ -59,6 +61,28 @@ module.exports = (collections) => {
         });
       } catch (error) {
         return responseSend(res, 400, "Failed to fetch staff data");
+      }
+    }
+  );
+
+  //delete a staff by admin
+  router.delete(
+    "/:id/admin",
+    verifyFireBaseToken,
+    verifyAdmin(collections),
+    async (req, res) => {
+      try {
+        const id = req.params.id;
+        console.log(id);
+        const query = { _id: new ObjectId(id) };
+        console.log(query);
+        const result = await staffCollection.deleteOne(query);
+        console.log(result);
+        responseSend(res, 200, "Successfully deleted the staff", {
+          staff: result,
+        });
+      } catch (error) {
+        return responseSend(res, 400, "Failed to delete staff");
       }
     }
   );
