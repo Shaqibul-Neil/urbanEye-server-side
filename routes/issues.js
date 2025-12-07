@@ -13,6 +13,7 @@ module.exports = (collections) => {
   router.post("/", verifyFireBaseToken, async (req, res) => {
     try {
       const issueInfo = req.body;
+      issueInfo.isAssignedStaff = false;
       //finding the user
       const userEmail = issueInfo.userEmail;
       if (userEmail !== req.decoded_email)

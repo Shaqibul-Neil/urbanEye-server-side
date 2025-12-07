@@ -42,13 +42,13 @@ module.exports = (collections) => {
 
       //removing duplicate entry upon reload
       const transactionId = session.payment_intent;
-      const isPaymentExist = await paymentCollection.findOne({
-        transactionId: transactionId,
-      });
-      if (isPaymentExist)
-        return responseSend(res, 200, "Already paid", {
+      const query = { transactionId: transactionId };
+      const isPaymentExist = await paymentCollection.findOne(query);
+      if (isPaymentExist) {
+        return responseSend(res, 200, "Already paid for this parcel", {
           transactionId: isPaymentExist.transactionId,
         });
+      }
 
       //citizen premium status update
       if (session.payment_status === "paid") {
