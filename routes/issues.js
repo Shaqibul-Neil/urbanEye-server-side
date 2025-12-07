@@ -19,7 +19,6 @@ module.exports = (collections) => {
         return responseSend(res, 403, "Forbidden: You cannot edit this issue");
       const user = await userCollection.findOne({ email: userEmail });
       if (!user) return responseSend(res, 404, "User not found");
-      console.log("user", user);
       //if user is blocked
       if (user.isBlocked) {
         return responseSend(

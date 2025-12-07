@@ -93,7 +93,6 @@ module.exports = (collections) => {
   router.get("/:email/role", verifyFireBaseToken, async (req, res) => {
     try {
       const email = req.params.email;
-      console.log(email);
       //check in staff collection to get the role first so that staff can easily login without by default getting the citizen role
       const staff = await staffCollection.findOne({ staffEmail: email });
       if (staff) {

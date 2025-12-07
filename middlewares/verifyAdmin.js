@@ -4,7 +4,6 @@ const verifyAdmin = (collections) => {
   const { userCollection } = collections;
   return async (req, res, next) => {
     try {
-      console.log("admin", req.decoded_email);
       //user email from firebase
       const email = req.decoded_email;
       const query = { email };

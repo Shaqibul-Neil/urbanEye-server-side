@@ -88,8 +88,16 @@ module.exports = (collections) => {
   router.get("/", verifyFireBaseToken, async (req, res) => {
     try {
       const email = req.decoded_email;
-      const query = { citizenEmail: email };
-
+      const user = await userCollection.findOne({ email: email });
+      if (!user) {
+        return responseSend(res, 404, "User not found");
+      }
+      let query = {};
+      if (user.role === "admin") {
+        query = {};
+      } else if (user.role === "citizen") {
+        query = { citizenEmail: email };
+      }
       const result = await paymentCollection
         .find(query)
         .sort({ paidAt: -1 })

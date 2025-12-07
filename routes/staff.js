@@ -44,7 +44,6 @@ module.exports = (collections) => {
         const result = await staffCollection.insertOne(staffInfo);
         return responseSend(res, 201, "Staff created successfully", result);
       } catch (error) {
-        console.log(error);
         return responseSend(res, 500, error.message);
       }
     }
@@ -78,11 +77,8 @@ module.exports = (collections) => {
     async (req, res) => {
       try {
         const id = req.params.id;
-        console.log(id);
         const query = { _id: new ObjectId(id) };
-        console.log(query);
         const result = await staffCollection.deleteOne(query);
-        console.log(result);
         responseSend(res, 200, "Successfully deleted the staff", {
           staff: result,
         });
@@ -93,6 +89,32 @@ module.exports = (collections) => {
   );
 
   //update a staff by admin
-
+  router.patch(
+    "/:id/admin",
+    verifyFireBaseToken,
+    verifyAdmin(collections),
+    async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const staffInfo = req.body;
+        const updatedStaff = {
+          $set: {
+            staffName: staffInfo.staffName,
+            staffEmail: staffInfo.staffEmail,
+            staffPhone: staffInfo.staffPhone,
+            lastUpdatedAt: new Date(),
+          },
+          $inc: { totalUpdate: 1 },
+        };
+        const result = await staffCollection.updateOne(query, updatedStaff);
+        responseSend(res, 201, "Successfully updated staff information", {
+          staff: result,
+        });
+      } catch (error) {
+        return responseSend(res, 400, "Failed to update staff information");
+      }
+    }
+  );
   return router;
 };
