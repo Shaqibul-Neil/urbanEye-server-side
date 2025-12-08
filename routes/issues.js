@@ -305,5 +305,48 @@ module.exports = (collections) => {
       }
     }
   );
+
+  //----------------PUBLIC------------------
+  // Public issues
+  router.get("/public/all-issues", async (req, res) => {
+    try {
+      const searchText = req.query.searchText;
+      const { limit, skip } = req.query;
+
+      let query = {};
+
+      if (searchText) {
+        query.$or = [
+          { title: { $regex: searchText, $options: "i" } },
+          { location: { $regex: searchText, $options: "i" } },
+          { category: { $regex: searchText, $options: "i" } },
+        ];
+      }
+
+      const result = await issueCollection
+        .find(query)
+        .limit(Number(limit))
+        .skip(Number(skip))
+        .project({
+          description: 0,
+          isAssignedStaff: 0,
+          assignedStaff: 0,
+          staffAssignedAt: 0,
+          timeline: 0,
+          trackingId: 0,
+        })
+        .sort({ priority: 1 })
+        .toArray();
+      const count = await issueCollection.countDocuments(query);
+      return responseSend(res, 200, "Successfully fetched public issues", {
+        issue: result,
+        total: count,
+      });
+    } catch (error) {
+      console.log(error);
+      return responseSend(res, 400, "Failed to fetch public issues");
+    }
+  });
+
   return router;
 };
