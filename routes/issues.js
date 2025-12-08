@@ -72,7 +72,7 @@ module.exports = (collections) => {
       }
       const result = await issueCollection
         .find(query)
-        .sort({ createdAt: -1 })
+        .sort({ priority: 1 })
         .toArray();
       return responseSend(res, 200, "Successfully fetched issue data", {
         issue: result,
@@ -182,6 +182,34 @@ module.exports = (collections) => {
     }
   );
 
+  //reject issue by admin
+  router.patch(
+    "/:id/reject/admin",
+    verifyFireBaseToken,
+    verifyAdmin(collections),
+    async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { status } = req.body;
+        const query = { _id: new ObjectId(id) };
+        //update the issue
+        const updatedIssue = {
+          $set: { status: status },
+          $push: {
+            timeline: { action: `Status changed to ${status}`, at: new Date() },
+          },
+        };
+        const result = await issueCollection.updateOne(query, updatedIssue);
+        return responseSend(res, 200, "Status updated successfully", {
+          issue: result,
+        });
+      } catch (error) {
+        console.log(error);
+        return responseSend(res, 400, "Failed to update status");
+      }
+    }
+  );
+
   //----------------STAFF ACTIONS------------------
   router.get(
     "/staff/assigned-issues",
@@ -198,7 +226,7 @@ module.exports = (collections) => {
         if (priority) query.priority = priority;
         const issues = await issueCollection
           .find(query)
-          .sort({ priority: -1, createdAt: -1 })
+          .sort({ priority: 1 })
           .toArray();
         return responseSend(res, 200, "Successfully fetched issue data", {
           issues: issues,
@@ -209,6 +237,46 @@ module.exports = (collections) => {
       }
     }
   );
-  //get assigned issues for a staff
+  //update issue status for a particular issue
+  router.patch(
+    "/:id/staff/change-status",
+    verifyFireBaseToken,
+    async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { status } = req.body;
+        if (!status) return responseSend(res, 400, "Status is required");
+        const query = { _id: new ObjectId(id) };
+        // find existing issue
+        const existingIssue = await issueCollection.findOne(query);
+
+        if (!existingIssue) {
+          return responseSend(res, 404, "Issue not found");
+        }
+        //prevent duplicate status
+        if (existingIssue.status === status) {
+          return responseSend(res, 200, "Issue already has this status", {
+            issue: { modifiedCount: 0 },
+          });
+        }
+        //update if status is different
+        const updatedIssue = {
+          $set: { status: status },
+          $push: {
+            timeline: { action: `Status changed to ${status}`, at: new Date() },
+          },
+        };
+        const result = await issueCollection.updateOne(query, updatedIssue);
+        return responseSend(res, 200, "Status updated successfully", {
+          issue: result,
+        });
+      } catch (error) {
+        console.log(error);
+        return responseSend(res, 400, "Failed to update status");
+      }
+    }
+  );
   return router;
 };
+
+///staff middleware banano baki

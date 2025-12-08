@@ -93,9 +93,9 @@ module.exports = (collections) => {
         return responseSend(res, 404, "User not found");
       }
       let query = {};
-      if (user.role === "admin") {
+      if (user?.role === "admin") {
         query = {};
-      } else if (user.role === "citizen") {
+      } else if (user?.role === "citizen") {
         query = { citizenEmail: email };
       }
       const result = await paymentCollection
