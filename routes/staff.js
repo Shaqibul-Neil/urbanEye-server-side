@@ -122,6 +122,5 @@ module.exports = (collections) => {
     }
   );
 
-  //get all available staffs
   return router;
 };

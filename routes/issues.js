@@ -3,6 +3,7 @@ const responseSend = require("../utilities/responseSend");
 const generateTrackingId = require("../utilities/generateTrackingId");
 const { ObjectId } = require("mongodb");
 const verifyFireBaseToken = require("../middlewares/verifyFirebaseToken");
+const verifyAdmin = require("../middlewares/verifyAdmin");
 module.exports = (collections) => {
   const router = express.Router();
   const { userCollection, issueCollection, staffCollection } = collections;
@@ -136,45 +137,78 @@ module.exports = (collections) => {
   //----------------ADMIN ACTIONS------------------
 
   //assign staff to an issue
-  router.patch("/:id/assign/admin", async (req, res) => {
-    try {
-      const id = req.params.id;
-      const { assignedStaff } = req.body;
-      const { staffId, staffName, staffEmail, staffPhone } = assignedStaff;
-      //find and update Issue
-      const issueQuery = { _id: new ObjectId(id) };
+  router.patch(
+    "/:id/assign/admin",
+    verifyFireBaseToken,
+    verifyAdmin(collections),
+    async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { assignedStaff } = req.body;
+        const { staffId, staffName, staffEmail, staffPhone } = assignedStaff;
+        //find and update Issue
+        const issueQuery = { _id: new ObjectId(id) };
 
-      const updatedIssue = {
-        $set: {
-          assignedStaff: {
-            staffId: staffId,
-            staffName: staffName,
-            staffEmail: staffEmail,
-            staffPhone: staffPhone,
+        const updatedIssue = {
+          $set: {
+            assignedStaff: {
+              staffId: staffId,
+              staffName: staffName,
+              staffEmail: staffEmail,
+              staffPhone: staffPhone,
+            },
+            staffAssignedAt: new Date(),
+            isAssignedStaff: true,
           },
-          staffAssignedAt: new Date(),
-          isAssignedStaff: true,
-        },
-      };
-      const issueResult = await issueCollection.updateOne(
-        issueQuery,
-        updatedIssue
-      );
-      //find and update staff
-      const staffQuery = { _id: new ObjectId(staffId) };
-      const updatedStaff = { $set: { workStatus: "assigned" } };
-      const staffResult = await staffCollection.updateOne(
-        staffQuery,
-        updatedStaff
-      );
-      return responseSend(res, 201, "Successfully updated", {
-        issueResult,
-        staffResult,
-      });
-    } catch (error) {
-      return responseSend(res, 400, "Failed to update information");
+        };
+        const issueResult = await issueCollection.updateOne(
+          issueQuery,
+          updatedIssue
+        );
+        //find and update staff
+        const staffQuery = { _id: new ObjectId(staffId) };
+        const updatedStaff = { $set: { workStatus: "assigned" } };
+        const staffResult = await staffCollection.updateOne(
+          staffQuery,
+          updatedStaff
+        );
+        return responseSend(res, 201, "Successfully updated", {
+          issueResult,
+          staffResult,
+        });
+      } catch (error) {
+        return responseSend(res, 400, "Failed to update information");
+      }
     }
-  });
-  //get all issues from db for an admin
+  );
+
+  //----------------STAFF ACTIONS------------------
+  router.get(
+    "/staff/assigned-issues",
+    verifyFireBaseToken,
+    async (req, res) => {
+      try {
+        const { staffEmail, status, priority } = req.query;
+        if (!staffEmail) {
+          return responseSend(res, 400, "Staff Email is required");
+        }
+        const query = { "assignedStaff.staffEmail": staffEmail };
+
+        if (status) query.status = status;
+        if (priority) query.priority = priority;
+        const issues = await issueCollection
+          .find(query)
+          .sort({ priority: -1, createdAt: -1 })
+          .toArray();
+        return responseSend(res, 200, "Successfully fetched issue data", {
+          issues: issues,
+        });
+      } catch (error) {
+        console.log(error);
+        return responseSend(res, 400, "Failed to fetch issue data");
+      }
+    }
+  );
+  //get assigned issues for a staff
   return router;
 };

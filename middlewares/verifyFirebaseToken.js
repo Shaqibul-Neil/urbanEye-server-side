@@ -7,6 +7,7 @@ const verifyFireBaseToken = async (req, res, next) => {
   try {
     const decoded = await admin.auth().verifyIdToken(token);
     req.decoded_email = decoded.email;
+
     next();
   } catch (error) {
     return responseSend(res, 401, "Unauthorized Access");

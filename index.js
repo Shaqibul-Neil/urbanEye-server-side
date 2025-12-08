@@ -1,6 +1,5 @@
 require("dotenv").config();
 const express = require("express");
-console.log("Database URL Check:", process.env.DATABASE_URL);
 const app = express();
 const cors = require("cors");
 const { connectDB } = require("./config/db");
