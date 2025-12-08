@@ -111,5 +111,54 @@ module.exports = (collections) => {
     }
   });
 
+  //data aggregation
+  router.get("/stats/total", async (req, res) => {
+    try {
+      const pipeline = [
+        {
+          $facet: {
+            //Date-wise aggregation
+            dateWise: [
+              {
+                $group: {
+                  _id: {
+                    $dateToString: {
+                      format: "%Y-%m-%d",
+                      date: "$paidAt",
+                    },
+                  },
+                  totalPayments: { $sum: 1 },
+                  totalAmount: { $sum: "$amount" },
+                },
+              },
+              { $sort: { _id: 1 } },
+            ],
+
+            // Grand total
+            overall: [
+              {
+                $group: {
+                  _id: null,
+                  totalPayments: { $sum: 1 },
+                  totalAmount: { $sum: "$amount" },
+                },
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = await paymentCollection.aggregate(pipeline).toArray();
+      console.log(result);
+      return responseSend(res, 200, "Successfully fetched data", {
+        dateWise: result[0].dateWise,
+        totalPayments: result[0].overall[0]?.totalPayments || 0,
+        totalAmount: result[0].overall[0]?.totalAmount || 0,
+      });
+    } catch (error) {
+      console.log(error);
+      return responseSend(res, 400, "Failed fetched data");
+    }
+  });
   return router;
 };

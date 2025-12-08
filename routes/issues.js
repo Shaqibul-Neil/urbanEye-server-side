@@ -4,6 +4,7 @@ const generateTrackingId = require("../utilities/generateTrackingId");
 const { ObjectId } = require("mongodb");
 const verifyFireBaseToken = require("../middlewares/verifyFirebaseToken");
 const verifyAdmin = require("../middlewares/verifyAdmin");
+const verifyStaff = require("../middlewares/verifyStaff");
 module.exports = (collections) => {
   const router = express.Router();
   const { userCollection, issueCollection, staffCollection } = collections;
@@ -62,6 +63,7 @@ module.exports = (collections) => {
   router.get("/", verifyFireBaseToken, async (req, res) => {
     try {
       const email = req.decoded_email;
+      const searchText = req.query.searchText;
       //find the user
       const user = await userCollection.findOne({ email });
       let query = {};
@@ -69,6 +71,13 @@ module.exports = (collections) => {
         query.userEmail = email;
       } else if (user.role === "admin") {
         query = {};
+      }
+      if (searchText) {
+        query.$or = [
+          { title: { $regex: searchText, $options: "i" } },
+          { location: { $regex: searchText, $options: "i" } },
+          { category: { $regex: searchText, $options: "i" } },
+        ];
       }
       const result = await issueCollection
         .find(query)
@@ -210,10 +219,29 @@ module.exports = (collections) => {
     }
   );
 
+  //data aggregation
+  router.get("/admin/stats/status", async (req, res) => {
+    try {
+      const pipeline = [
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+        { $project: { status: "$_id", count: 1 } },
+      ];
+      const result = await issueCollection.aggregate(pipeline).toArray();
+      console.log(result);
+      return responseSend(res, 200, "Successfully fetched data", {
+        result: result,
+      });
+    } catch (error) {
+      console.log(error);
+      return responseSend(res, 400, "Failed fetched data");
+    }
+  });
+
   //----------------STAFF ACTIONS------------------
   router.get(
     "/staff/assigned-issues",
     verifyFireBaseToken,
+    verifyStaff(collections),
     async (req, res) => {
       try {
         const { staffEmail, status, priority } = req.query;
@@ -241,6 +269,7 @@ module.exports = (collections) => {
   router.patch(
     "/:id/staff/change-status",
     verifyFireBaseToken,
+    verifyStaff(collections),
     async (req, res) => {
       try {
         const id = req.params.id;
@@ -278,5 +307,3 @@ module.exports = (collections) => {
   );
   return router;
 };
-
-///staff middleware banano baki
