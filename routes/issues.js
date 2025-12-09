@@ -364,8 +364,9 @@ module.exports = (collections) => {
       }
       const result = await issueCollection
         .find(query)
-        .limit(Number(limit))
-        .skip(Number(skip))
+        .sort({ priority: 1 }) // Low → High priority
+        .skip(Number(skip)) // pagination start
+        .limit(Number(limit)) // page size
         .project({
           description: 0,
           isAssignedStaff: 0,
@@ -374,7 +375,6 @@ module.exports = (collections) => {
           timeline: 0,
           trackingId: 0,
         })
-        .sort({ priority: 1 })
         .toArray();
       const count = await issueCollection.countDocuments(query);
       return responseSend(res, 200, "Successfully fetched public issues", {
@@ -387,6 +387,29 @@ module.exports = (collections) => {
     }
   });
 
+  //get latest resolved issues
+  router.get("/latest/resolved-issues", async (req, res) => {
+    try {
+      const query = { status: "resolved" };
+      const result = await issueCollection
+        .find(query)
+        .sort({ updatedAt: -1 }) //latest resolved
+        .limit(6)
+        .project({
+          description: 0,
+          isAssignedStaff: 0,
+          assignedStaff: 0,
+          staffAssignedAt: 0,
+          trackingId: 0,
+        })
+        .toArray();
+      return responseSend(res, 200, "Successfully fetched issue data", {
+        issue: result,
+      });
+    } catch (error) {
+      return responseSend(res, 400, "Failed to fetch issue data");
+    }
+  });
   //issue base user and staff info collect
 
   return router;

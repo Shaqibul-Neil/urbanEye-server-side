@@ -181,11 +181,11 @@ module.exports = (collections) => {
 
   //upvote create checkout session
   router.post("/upvote-checkout-session", async (req, res) => {
-    const { issueId, userEmail, paymentName, reporterEmail } = req.body;
+    const { issueId, paymentName, citizenEmail } = req.body;
     // Check if already upvoted
     const existingUpvote = await upvoteCollection.findOne({
       issueId: new ObjectId(issueId),
-      userEmail: userEmail,
+      citizenEmail: citizenEmail, //one who pays
     });
     if (existingUpvote)
       return responseSend(res, 200, "Already paid for this issue", {
@@ -202,12 +202,11 @@ module.exports = (collections) => {
           quantity: 1,
         },
       ],
-      customer_email: userEmail, // one who paid
+      customer_email: citizenEmail, // one who paid
       mode: "payment",
       metadata: {
         issueId,
-        userEmail,
-        reporterEmail,
+        citizenEmail, // one who paid
         paymentName,
         paymentMethod: "Card/Stripe",
       },
@@ -222,7 +221,7 @@ module.exports = (collections) => {
     try {
       const sessionId = req.query.session_id;
       const session = await stripe.checkout.sessions.retrieve(sessionId);
-      const { userEmail, issueId, paymentName } = session.metadata;
+      const { citizenEmail, issueId, paymentName } = session.metadata;
       //removing duplicate entry upon reload
       const transactionId = session.payment_intent;
       const query = { transactionId: transactionId };
@@ -235,7 +234,7 @@ module.exports = (collections) => {
       // upvote duplication check
       const alreadyUpvoted = await upvoteCollection.findOne({
         issueId: new ObjectId(issueId),
-        userEmail,
+        citizenEmail,
       });
       if (alreadyUpvoted) {
         return responseSend(res, 200, "Already upvoted", {
@@ -247,7 +246,7 @@ module.exports = (collections) => {
         //insert into upvote collection with timestamp
         await upvoteCollection.insertOne({
           issueId: new ObjectId(issueId),
-          userEmail: userEmail,
+          citizenEmail: citizenEmail,
           paymentStatus: session.payment_status,
           transactionId,
           paymentMethod: session.metadata.paymentMethod,
@@ -274,8 +273,7 @@ module.exports = (collections) => {
           paymentName,
           paymentStatus: session.payment_status,
           currency: session.currency,
-          userEmail: userEmail,
-          reporterEmail: session.customer_email,
+          citizenEmail: session.customer_email,
           paidAt: new Date(),
           amount: session.amount_total / 100,
         };
