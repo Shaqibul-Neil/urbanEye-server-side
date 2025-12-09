@@ -44,6 +44,9 @@ module.exports = (collections) => {
       issueInfo.status = "pending";
       issueInfo.priority = "normal";
       issueInfo.trackingId = generateTrackingId();
+      // timeline with initial entry
+      issueInfo.timeline = [{ action: "Issue created", at: new Date() }];
+
       const result = await issueCollection.insertOne(issueInfo);
 
       //increment user issue count
@@ -111,6 +114,12 @@ module.exports = (collections) => {
           photoURL: issueInfo.photoURL,
         },
         $inc: { totalUpdate: 1 },
+        $push: {
+          timeline: {
+            action: "Issue details updated by user",
+            at: new Date(),
+          },
+        },
       };
       const result = await issueCollection.updateOne(query, updatedIssue);
       responseSend(res, 201, "Successfully updated the issue", {
@@ -183,6 +192,12 @@ module.exports = (collections) => {
             },
             staffAssignedAt: new Date(),
             isAssignedStaff: true,
+          },
+          $push: {
+            timeline: {
+              action: `Staff assigned: ${staffName} (${staffEmail})`,
+              at: new Date(),
+            },
           },
         };
         const issueResult = await issueCollection.updateOne(

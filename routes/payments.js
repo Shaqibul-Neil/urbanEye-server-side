@@ -32,6 +32,7 @@ module.exports = (collections) => {
       metadata: {
         paymentName: paymentInfo.paymentName,
         citizenEmail: paymentInfo.userEmail,
+        paymentMethod: "Card/Stripe",
       },
       success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.SITE_DOMAIN}/dashboard/my-profile`,
@@ -44,9 +45,18 @@ module.exports = (collections) => {
     try {
       const sessionId = req.query.session_id;
       const session = await stripe.checkout.sessions.retrieve(sessionId);
-
+      if (!sessionId) {
+        return responseSend(res, 400, "Session ID is required");
+      }
       //removing duplicate entry upon reload
       const transactionId = session.payment_intent;
+      if (!transactionId) {
+        return responseSend(
+          res,
+          400,
+          "Transaction not completed yet, try again later"
+        );
+      }
       const query = { transactionId: transactionId };
       const isPaymentExist = await paymentCollection.findOne(query);
       if (isPaymentExist) {
@@ -65,6 +75,7 @@ module.exports = (collections) => {
         const payment = {
           paymentType: "subscription",
           transactionId: transactionId,
+          paymentMethod: session.metadata.paymentMethod,
           paymentName: session.metadata.paymentName,
           paymentStatus: session.payment_status,
           currency: session.currency,
@@ -75,6 +86,7 @@ module.exports = (collections) => {
         const paymentResult = await paymentCollection.insertOne(payment);
         return responseSend(res, 200, "User updated with payment information", {
           paymentResult,
+          payment,
           modifiedUser,
           transactionId: session.payment_intent,
         });
@@ -190,9 +202,15 @@ module.exports = (collections) => {
           quantity: 1,
         },
       ],
-      customer_email: reporterEmail,
+      customer_email: userEmail, // one who paid
       mode: "payment",
-      metadata: { issueId, userEmail, paymentName },
+      metadata: {
+        issueId,
+        userEmail,
+        reporterEmail,
+        paymentName,
+        paymentMethod: "Card/Stripe",
+      },
       success_url: `${process.env.SITE_DOMAIN}/upvote-payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.SITE_DOMAIN}/all-issues`,
     });
@@ -204,7 +222,7 @@ module.exports = (collections) => {
     try {
       const sessionId = req.query.session_id;
       const session = await stripe.checkout.sessions.retrieve(sessionId);
-
+      const { userEmail, issueId, paymentName } = session.metadata;
       //removing duplicate entry upon reload
       const transactionId = session.payment_intent;
       const query = { transactionId: transactionId };
@@ -226,19 +244,27 @@ module.exports = (collections) => {
       }
       //citizen premium status update
       if (session.payment_status === "paid") {
-        const { userEmail, issueId, paymentName } = session.metadata;
         //insert into upvote collection with timestamp
         await upvoteCollection.insertOne({
           issueId: new ObjectId(issueId),
           userEmail: userEmail,
           paymentStatus: session.payment_status,
           transactionId,
+          paymentMethod: session.metadata.paymentMethod,
           amount: session.amount_total / 100,
           createdAt: new Date(),
         });
-        // Increment upvote count in issue
+        // Fetch issue to check priority
         const issueQuery = { _id: new ObjectId(issueId) };
+        const issue = await issueCollection.findOne(issueQuery);
+        if (!issue) {
+          return responseSend(res, 404, "Issue not found");
+        }
+        // Increment upvote count and set priority if needed
         const updatedIssue = { $inc: { upvoteCount: 1 } };
+        if (issue.priority !== "high") {
+          updatedIssue.$set = { priority: "high" };
+        }
         await issueCollection.updateOne(issueQuery, updatedIssue);
 
         //payment collection for payment history
@@ -255,14 +281,28 @@ module.exports = (collections) => {
         };
         const paymentResult = await paymentCollection.insertOne(payment);
         return responseSend(res, 200, "Upvote added & payment recorded", {
+          payment,
           paymentResult,
-          transactionId: session.payment_intent,
         });
       } else {
         return responseSend(res, 400, "Payment not completed", {});
       }
     } catch (error) {
       return responseSend(res, 400, "Failed to process upvote payment");
+    }
+  });
+
+  //check upvote for a single issue for a user
+  router.get("/check-upvote", async (req, res) => {
+    try {
+      const { issueId, userEmail } = req.query;
+      const upvoted = await upvoteCollection.findOne({
+        issueId: new ObjectId(issueId),
+        userEmail,
+      });
+      return res.send({ alreadyUpvoted: !!upvoted });
+    } catch (error) {
+      return responseSend(res, 400, "Failed to Check information");
     }
   });
   return router;
