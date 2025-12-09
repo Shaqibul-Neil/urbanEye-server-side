@@ -2,11 +2,16 @@ const stripe = require("stripe")(process.env.STRIPE_API_KEY);
 const express = require("express");
 const responseSend = require("../utilities/responseSend");
 
-const { ObjectId } = require("mongodb");
 const verifyFireBaseToken = require("../middlewares/verifyFirebaseToken");
+const { ObjectId } = require("mongodb");
 module.exports = (collections) => {
   const router = express.Router();
-  const { userCollection, issueCollection, paymentCollection } = collections;
+  const {
+    userCollection,
+    issueCollection,
+    paymentCollection,
+    upvoteCollection,
+  } = collections;
 
   //subscription create checkout session
   router.post("/create-checkout-session", async (req, res) => {
@@ -35,7 +40,7 @@ module.exports = (collections) => {
   });
 
   //subscription payment success
-  router.patch("/payment-success", async (req, res) => {
+  router.post("/payment-success", async (req, res) => {
     try {
       const sessionId = req.query.session_id;
       const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -45,7 +50,7 @@ module.exports = (collections) => {
       const query = { transactionId: transactionId };
       const isPaymentExist = await paymentCollection.findOne(query);
       if (isPaymentExist) {
-        return responseSend(res, 200, "Already paid for this parcel", {
+        return responseSend(res, 200, "Already paid for this subscription", {
           transactionId: isPaymentExist.transactionId,
         });
       }
@@ -58,6 +63,7 @@ module.exports = (collections) => {
         const modifiedUser = await userCollection.updateOne(query, updatedUser);
         //payment collection for payment history
         const payment = {
+          paymentType: "subscription",
           transactionId: transactionId,
           paymentName: session.metadata.paymentName,
           paymentStatus: session.payment_status,
@@ -158,6 +164,105 @@ module.exports = (collections) => {
     } catch (error) {
       console.log(error);
       return responseSend(res, 400, "Failed fetched data");
+    }
+  });
+
+  //upvote create checkout session
+  router.post("/upvote-checkout-session", async (req, res) => {
+    const { issueId, userEmail, paymentName, reporterEmail } = req.body;
+    // Check if already upvoted
+    const existingUpvote = await upvoteCollection.findOne({
+      issueId: new ObjectId(issueId),
+      userEmail: userEmail,
+    });
+    if (existingUpvote)
+      return responseSend(res, 200, "Already paid for this issue", {
+        transactionId: existingUpvote.transactionId,
+      });
+    const session = await stripe.checkout.sessions.create({
+      line_items: [
+        {
+          price_data: {
+            currency: "USD",
+            unit_amount: 10000,
+            product_data: { name: paymentName },
+          },
+          quantity: 1,
+        },
+      ],
+      customer_email: reporterEmail,
+      mode: "payment",
+      metadata: { issueId, userEmail, paymentName },
+      success_url: `${process.env.SITE_DOMAIN}/upvote-payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.SITE_DOMAIN}/all-issues`,
+    });
+    return responseSend(res, 200, "success", { url: session.url });
+  });
+
+  //upvote payment success
+  router.post("/upvote-payment-success", async (req, res) => {
+    try {
+      const sessionId = req.query.session_id;
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+      //removing duplicate entry upon reload
+      const transactionId = session.payment_intent;
+      const query = { transactionId: transactionId };
+      const isPaymentExist = await paymentCollection.findOne(query);
+      if (isPaymentExist) {
+        return responseSend(res, 200, "Already paid for this issue", {
+          transactionId: isPaymentExist.transactionId,
+        });
+      }
+      // upvote duplication check
+      const alreadyUpvoted = await upvoteCollection.findOne({
+        issueId: new ObjectId(issueId),
+        userEmail,
+      });
+      if (alreadyUpvoted) {
+        return responseSend(res, 200, "Already upvoted", {
+          transactionId: alreadyUpvoted.transactionId,
+        });
+      }
+      //citizen premium status update
+      if (session.payment_status === "paid") {
+        const { userEmail, issueId, paymentName } = session.metadata;
+        //insert into upvote collection with timestamp
+        await upvoteCollection.insertOne({
+          issueId: new ObjectId(issueId),
+          userEmail: userEmail,
+          paymentStatus: session.payment_status,
+          transactionId,
+          amount: session.amount_total / 100,
+          createdAt: new Date(),
+        });
+        // Increment upvote count in issue
+        const issueQuery = { _id: new ObjectId(issueId) };
+        const updatedIssue = { $inc: { upvoteCount: 1 } };
+        await issueCollection.updateOne(issueQuery, updatedIssue);
+
+        //payment collection for payment history
+        const payment = {
+          paymentType: "upvote",
+          transactionId: transactionId,
+          paymentName,
+          paymentStatus: session.payment_status,
+          currency: session.currency,
+          userEmail: userEmail,
+          reporterEmail: session.customer_email,
+          paidAt: new Date(),
+          amount: session.amount_total / 100,
+        };
+        const paymentResult = await paymentCollection.insertOne(payment);
+        return responseSend(res, 200, "Upvote added & payment recorded", {
+          paymentResult,
+          transactionId: session.payment_intent,
+        });
+      } else {
+        return responseSend(res, 400, "Payment not completed", {});
+      }
+    } catch (error) {
+      return responseSend(res, 400, "Failed to process upvote payment");
     }
   });
   return router;

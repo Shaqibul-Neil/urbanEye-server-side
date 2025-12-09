@@ -143,6 +143,21 @@ module.exports = (collections) => {
     }
   });
 
+  //single issue details
+  router.get("/:id", verifyFireBaseToken, async (req, res) => {
+    try {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await issueCollection.findOne(query);
+      return responseSend(res, 200, "Successfully fetched issue details", {
+        issue: result,
+      });
+    } catch (error) {
+      console.log(error);
+      return responseSend(res, 400, "Failed to fetch issue details");
+    }
+  });
+
   //----------------ADMIN ACTIONS------------------
 
   //assign staff to an issue
@@ -356,6 +371,8 @@ module.exports = (collections) => {
       return responseSend(res, 400, "Failed to fetch public issues");
     }
   });
+
+  //issue base user and staff info collect
 
   return router;
 };

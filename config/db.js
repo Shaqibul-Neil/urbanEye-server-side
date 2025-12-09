@@ -18,6 +18,7 @@ async function connectDB() {
     staffCollection: db.collection("staff"),
     issueCollection: db.collection("issues"),
     paymentCollection: db.collection("payments"),
+    upvoteCollection: db.collection("upvotes"),
   };
 }
 
