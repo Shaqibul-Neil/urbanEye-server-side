@@ -307,11 +307,11 @@ module.exports = (collections) => {
   );
 
   //----------------PUBLIC------------------
-  // Public issues
+  // get Public issues
   router.get("/public/all-issues", async (req, res) => {
     try {
       const searchText = req.query.searchText;
-      const { limit, skip } = req.query;
+      const { limit, skip, status, priority } = req.query;
 
       let query = {};
 
@@ -323,6 +323,15 @@ module.exports = (collections) => {
         ];
       }
 
+      //multiple checkbox = $in
+      //single select = normal equality
+      if (status) {
+        query.status = { $in: status.split(",") };
+      }
+
+      if (priority) {
+        query.priority = { $in: priority.split(",") };
+      }
       const result = await issueCollection
         .find(query)
         .limit(Number(limit))
