@@ -52,6 +52,44 @@ module.exports = (collections) => {
     }
   });
 
+  //update user profile
+  router.patch("/my-profile", verifyFireBaseToken, async (req, res) => {
+    try {
+      const email = req.decoded_email;
+      const { name, photoURL, role } = req.body;
+      console.log(name, photoURL, role, email);
+      let result;
+      if (role === "staff") {
+        result = await staffCollection.updateOne(
+          { staffEmail: email },
+          {
+            $set: {
+              staffName: name,
+              staffPhotoURL: photoURL,
+              updatedAt: new Date(),
+            },
+          }
+        );
+      } else {
+        result = await userCollection.updateOne(
+          { email },
+          {
+            $set: {
+              displayName: name,
+              photoURL: photoURL,
+              updatedAt: new Date(),
+            },
+          }
+        );
+      }
+      console.log(result);
+      return responseSend(res, 200, "Profile updated", { profile: result });
+    } catch (error) {
+      console.log(error);
+      return responseSend(res, 400, "Profile update failed");
+    }
+  });
+
   //----------------ADMIN ACTIONS------------------
   //get all user for admin
   router.get(

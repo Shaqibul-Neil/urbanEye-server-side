@@ -94,6 +94,45 @@ module.exports = (collections) => {
     }
   });
 
+  //get filter issue by status and priority
+  router.get("/my-issues", verifyFireBaseToken, async (req, res) => {
+    try {
+      const email = req.decoded_email;
+      const { status, priority } = req.query;
+
+      // find user
+      const user = await userCollection.findOne({ email });
+      if (!user) {
+        return responseSend(res, 400, "User Not Found");
+      }
+
+      let query = {
+        userEmail: email,
+      };
+
+      // status filter
+      if (status) {
+        query.status = { $in: status.split(",") };
+      }
+
+      // priority filter
+      if (priority) {
+        query.priority = { $in: priority.split(",") };
+      }
+
+      const issues = await issueCollection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .toArray();
+
+      return responseSend(res, 200, "Successfully fetched my issues", {
+        issue: issues,
+      });
+    } catch (error) {
+      return responseSend(res, 400, "Failed to fetch issues");
+    }
+  });
+
   //update an issue by citizen
   router.patch("/:id", verifyFireBaseToken, async (req, res) => {
     try {
@@ -162,7 +201,6 @@ module.exports = (collections) => {
         issue: result,
       });
     } catch (error) {
-      console.log(error);
       return responseSend(res, 400, "Failed to fetch issue details");
     }
   });
@@ -243,7 +281,6 @@ module.exports = (collections) => {
           issue: result,
         });
       } catch (error) {
-        console.log(error);
         return responseSend(res, 400, "Failed to update status");
       }
     }
@@ -257,15 +294,35 @@ module.exports = (collections) => {
         { $project: { status: "$_id", count: 1 } },
       ];
       const result = await issueCollection.aggregate(pipeline).toArray();
-      console.log(result);
       return responseSend(res, 200, "Successfully fetched data", {
         result: result,
       });
     } catch (error) {
-      console.log(error);
       return responseSend(res, 400, "Failed fetched data");
     }
   });
+
+  //latest 3 issues for admin dashboard
+  router.get(
+    "/latest/admin",
+    verifyFireBaseToken,
+    verifyAdmin(collections),
+    async (req, res) => {
+      try {
+        const result = await issueCollection
+          .find()
+          .sort({ createdAt: -1 })
+          .limit(3)
+          .project({ title: 1, userEmail: 1, photoURL: 1 })
+          .toArray();
+        return responseSend(res, 200, "Successfully fetched issue data", {
+          issue: result,
+        });
+      } catch (error) {
+        return responseSend(res, 400, "Failed to fetch issue data");
+      }
+    }
+  );
 
   //----------------STAFF ACTIONS------------------
   router.get(
@@ -290,7 +347,6 @@ module.exports = (collections) => {
           issues: issues,
         });
       } catch (error) {
-        console.log(error);
         return responseSend(res, 400, "Failed to fetch issue data");
       }
     }
@@ -330,7 +386,6 @@ module.exports = (collections) => {
           issue: result,
         });
       } catch (error) {
-        console.log(error);
         return responseSend(res, 400, "Failed to update status");
       }
     }
@@ -382,7 +437,6 @@ module.exports = (collections) => {
         total: count,
       });
     } catch (error) {
-      console.log(error);
       return responseSend(res, 400, "Failed to fetch public issues");
     }
   });

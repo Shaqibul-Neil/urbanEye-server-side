@@ -59,12 +59,12 @@ module.exports = (collections) => {
       }
       const query = { transactionId: transactionId };
       const isPaymentExist = await paymentCollection.findOne(query);
+
       if (isPaymentExist) {
         return responseSend(res, 200, "Already paid for this subscription", {
           transactionId: isPaymentExist.transactionId,
         });
       }
-
       //citizen premium status update
       if (session.payment_status === "paid") {
         const email = session.metadata.citizenEmail;
@@ -167,14 +167,12 @@ module.exports = (collections) => {
       ];
 
       const result = await paymentCollection.aggregate(pipeline).toArray();
-      console.log(result);
       return responseSend(res, 200, "Successfully fetched data", {
         dateWise: result[0].dateWise,
         totalPayments: result[0].overall[0]?.totalPayments || 0,
         totalAmount: result[0].overall[0]?.totalAmount || 0,
       });
     } catch (error) {
-      console.log(error);
       return responseSend(res, 400, "Failed fetched data");
     }
   });
@@ -222,15 +220,29 @@ module.exports = (collections) => {
       const sessionId = req.query.session_id;
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       const { citizenEmail, issueId, paymentName } = session.metadata;
+
       //removing duplicate entry upon reload
       const transactionId = session.payment_intent;
       const query = { transactionId: transactionId };
+      //payment collection for payment history
+      const payment = {
+        paymentType: "upvote",
+        transactionId: transactionId,
+        paymentName,
+        paymentStatus: session.payment_status,
+        currency: session.currency,
+        citizenEmail: session.customer_email,
+        paidAt: new Date(),
+        amount: session.amount_total / 100,
+      };
       const isPaymentExist = await paymentCollection.findOne(query);
       if (isPaymentExist) {
         return responseSend(res, 200, "Already paid for this issue", {
           transactionId: isPaymentExist.transactionId,
+          payment,
         });
       }
+
       // upvote duplication check
       const alreadyUpvoted = await upvoteCollection.findOne({
         issueId: new ObjectId(issueId),
@@ -239,6 +251,7 @@ module.exports = (collections) => {
       if (alreadyUpvoted) {
         return responseSend(res, 200, "Already upvoted", {
           transactionId: alreadyUpvoted.transactionId,
+          payment,
         });
       }
       //citizen premium status update
@@ -266,17 +279,6 @@ module.exports = (collections) => {
         }
         await issueCollection.updateOne(issueQuery, updatedIssue);
 
-        //payment collection for payment history
-        const payment = {
-          paymentType: "upvote",
-          transactionId: transactionId,
-          paymentName,
-          paymentStatus: session.payment_status,
-          currency: session.currency,
-          citizenEmail: session.customer_email,
-          paidAt: new Date(),
-          amount: session.amount_total / 100,
-        };
         const paymentResult = await paymentCollection.insertOne(payment);
         return responseSend(res, 200, "Upvote added & payment recorded", {
           payment,
