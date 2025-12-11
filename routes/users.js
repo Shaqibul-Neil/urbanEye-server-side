@@ -151,5 +151,27 @@ module.exports = (collections) => {
     }
   });
 
+  //get latest registered users
+  router.get(
+    "/latest/registered-users",
+    verifyFireBaseToken,
+    verifyAdmin(collections),
+    async (req, res) => {
+      try {
+        const result = await userCollection
+          .find()
+          .sort({ createdAt: -1 })
+          .limit(3)
+          .project({ displayName: 1, email: 1, photoURL: 1 })
+          .toArray();
+        return responseSend(res, 200, "Successfully fetched latest user data", {
+          user: result,
+        });
+      } catch (error) {
+        return responseSend(res, 400, "Failed to fetch user data");
+      }
+    }
+  );
+
   return router;
 };

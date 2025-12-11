@@ -287,9 +287,21 @@ module.exports = (collections) => {
   );
 
   //data aggregation
-  router.get("/admin/stats/status", async (req, res) => {
+  router.get("/admin/stats/status", verifyFireBaseToken, async (req, res) => {
     try {
+      const email = req.decoded_email;
+      //finding the user
+      const user = await userCollection.findOne({ email });
+      if (!user) {
+        return responseSend(res, 404, "User not found");
+      }
+      //role wise match
+      let matchStage = {};
+      if (user.role === "citizen") {
+        matchStage.userEmail = email;
+      }
       const pipeline = [
+        { $match: matchStage },
         { $group: { _id: "$status", count: { $sum: 1 } } },
         { $project: { status: "$_id", count: 1 } },
       ];
@@ -391,6 +403,106 @@ module.exports = (collections) => {
     }
   );
 
+  //issue aggregation for stats
+  router.get(
+    "/staff/issue-aggregate",
+    verifyFireBaseToken,
+    verifyStaff(collections),
+    async (req, res) => {
+      try {
+        const email = req.decoded_email;
+        let matchStage = { "assignedStaff.staffEmail": email };
+        const pipeline = [
+          { $match: matchStage },
+          { $group: { _id: "$status", count: { $sum: 1 } } },
+        ];
+        const result = await issueCollection.aggregate(pipeline).toArray();
+        return responseSend(
+          res,
+          200,
+          "Successfully staff issue aggregation data fetched",
+          {
+            dataAggregate: result,
+          }
+        );
+      } catch (error) {
+        return responseSend(
+          res,
+          400,
+          "Staff issue aggregation data fetched failed",
+          {
+            dataAggregate: result,
+          }
+        );
+      }
+    }
+  );
+
+  //staff today's assigned task
+  router.get(
+    "/staff/assigned/today/task",
+    verifyFireBaseToken,
+    verifyStaff(collections),
+    async (req, res) => {
+      try {
+        const email = req.decoded_email;
+        const query = { "assignedStaff.staffEmail": email };
+        const result = await issueCollection
+          .find(query)
+          .sort({ staffAssignedAt: -1 })
+          .limit(3)
+          .project({ title: 1, photoURL: 1, staffAssignedAt: 1 })
+          .toArray();
+        return responseSend(res, 200, "Successfully fetched today task", {
+          tasks: result,
+        });
+      } catch (error) {
+        return responseSend(res, 400, "Failed to fetch today task");
+      }
+    }
+  );
+
+  //staff latest resolved task
+  router.get(
+    "/resolved/staff/latest",
+    verifyFireBaseToken,
+    verifyStaff(collections),
+    async (req, res) => {
+      try {
+        const email = req.decoded_email;
+        const result = await issueCollection
+          .aggregate([
+            {
+              $match: { "assignedStaff.staffEmail": email, status: "resolved" },
+            },
+            {
+              $project: {
+                title: 1,
+                trackingId: 1,
+                photoURL: 1,
+                lastTimeline: { $arrayElemAt: ["$timeline", -1] },
+              },
+            },
+            { $match: { "lastTimeline.action": "Status changed to resolved" } },
+            { $sort: { "lastTimeline.at": -1 } },
+            { $limit: 3 },
+          ])
+          .toArray();
+        console.log(result);
+        return responseSend(
+          res,
+          200,
+          "Latest resolved issue fetched successfully",
+          {
+            tasks: result,
+          }
+        );
+      } catch (error) {
+        return responseSend(res, 400, "Failed to fetch latest resolved issue");
+      }
+    }
+  );
+
   //----------------PUBLIC------------------
   // get Public issues
   router.get("/public/all-issues", async (req, res) => {
@@ -468,3 +580,104 @@ module.exports = (collections) => {
 
   return router;
 };
+
+//***************************************************************************************************************** */
+/*Need to understand later : priority high bt status close stays at the end, only issues pending and high status comes first, then etc......*/
+/*
+const query = { "assignedStaff.staffEmail": staffEmail };
+
+// filter by status / priority query
+if (status) query.status = status;
+if (priority) query.priority = priority;
+
+// Sort rules:
+// 1. Closed issues last (status: "closed" first/false, open first/true)
+// 2. Priority ascending (high priority = smaller number, e.g., 1 highest)
+// 3. Optional: createdAt descending (recent first)
+const issues = await issueCollection
+  .find(query)
+  .sort({
+    status: 1, // open (e.g., 'open') comes first, closed ('closed') comes last
+    priority: 1, // high priority first
+    createdAt: -1 // newest first
+  })
+  .toArray();
+
+const issues = await issueCollection
+  .aggregate([
+    { $match: query },
+    { $addFields: { isOpen: { $cond: [{ $eq: ["$status", "closed"] }, 0, 1] } } },
+    { $sort: { isOpen: -1, priority: 1, createdAt: -1 } }
+  ])
+  .toArray();
+ */
+//**************************************************************************************** */
+/*
+Need to understand and ask support
+router.get(
+  "/staff/latest/resolved",
+  verifyFireBaseToken,
+  verifyStaff(collections),
+  async (req, res) => {
+    try {
+      const email = req.decoded_email;
+
+      const result = await issueCollection.aggregate([
+        // 1. শুধু এই staff এর resolved issue নিই
+        {
+          $match: {
+            status: "resolved",
+            "assignedStaff.staffEmail": email,
+          },
+        },
+
+        // 2. timeline থেকে শুধু "resolved" action টা বের করি
+        {
+          $addFields: {
+            resolvedTimeline: {
+              $filter: {
+                input: "$timeline",
+                as: "t",
+                cond: {
+                  $eq: ["$$t.action", "Status changed to resolved"],
+                },
+              },
+            },
+          },
+        },
+
+        // 3. ওই resolved action এর সময়টা নেই
+        {
+          $addFields: {
+            resolvedAt: {
+              $arrayElemAt: ["$resolvedTimeline.at", 0],
+            },
+          },
+        },
+
+        // 4. কী কী পাঠাবো সেটুকু ঠিক করি
+        {
+          $project: {
+            title: 1,
+            trackingId: 1,
+            resolvedAt: 1,
+          },
+        },
+
+        // 5. সর্বশেষ resolved আগে
+        { $sort: { resolvedAt: -1 } },
+
+        // 6. চাইলে limit
+        { $limit: 5 },
+      ]).toArray();
+
+      return responseSend(res, 200, "Resolved tasks fetched", {
+        tasks: result,
+      });
+    } catch (error) {
+      return responseSend(res, 400, "Failed to fetch resolved tasks");
+    }
+  }
+);
+
+*/

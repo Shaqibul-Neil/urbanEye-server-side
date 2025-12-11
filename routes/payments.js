@@ -130,9 +130,21 @@ module.exports = (collections) => {
   });
 
   //data aggregation
-  router.get("/stats/total", async (req, res) => {
+  router.get("/stats/total", verifyFireBaseToken, async (req, res) => {
     try {
+      const email = req.decoded_email;
+      //finding the user
+      const user = await userCollection.findOne({ email });
+      if (!user) {
+        return responseSend(res, 404, "User not found");
+      }
+      //role wise match
+      let matchStage = {};
+      if (user.role === "citizen") {
+        matchStage.citizenEmail = email;
+      }
       const pipeline = [
+        { $match: matchStage },
         {
           $facet: {
             //Date-wise aggregation
@@ -246,7 +258,7 @@ module.exports = (collections) => {
       // upvote duplication check
       const alreadyUpvoted = await upvoteCollection.findOne({
         issueId: new ObjectId(issueId),
-        citizenEmail,
+        citizenEmail: citizenEmail,
       });
       if (alreadyUpvoted) {
         return responseSend(res, 200, "Already upvoted", {
@@ -293,12 +305,13 @@ module.exports = (collections) => {
   });
 
   //check upvote for a single issue for a user
-  router.get("/check-upvote", async (req, res) => {
+  router.get("/check-upvote", verifyFireBaseToken, async (req, res) => {
     try {
-      const { issueId, userEmail } = req.query;
+      const { issueId } = req.query;
+      const citizenEmail = req.decoded_email;
       const upvoted = await upvoteCollection.findOne({
         issueId: new ObjectId(issueId),
-        userEmail,
+        citizenEmail,
       });
       return res.send({ alreadyUpvoted: !!upvoted });
     } catch (error) {
