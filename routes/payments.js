@@ -45,44 +45,40 @@ module.exports = (collections) => {
     try {
       const sessionId = req.query.session_id;
       const session = await stripe.checkout.sessions.retrieve(sessionId);
-      if (!sessionId) {
-        return responseSend(res, 400, "Session ID is required");
-      }
+
       //removing duplicate entry upon reload
       const transactionId = session.payment_intent;
-      if (!transactionId) {
-        return responseSend(
-          res,
-          400,
-          "Transaction not completed yet, try again later"
-        );
-      }
       const query = { transactionId: transactionId };
+      //payment collection for payment history
+      const payment = {
+        paymentType: "subscription",
+        transactionId: transactionId,
+        paymentMethod: session.metadata.paymentMethod,
+        paymentName: session.metadata.paymentName,
+        paymentStatus: session.payment_status,
+        currency: session.currency,
+        citizenEmail: session.customer_email,
+        paidAt: new Date(),
+        amount: session.amount_total / 100,
+      };
       const isPaymentExist = await paymentCollection.findOne(query);
+      console.log("isPaymentExist");
 
       if (isPaymentExist) {
+        console.log("yes");
         return responseSend(res, 200, "Already paid for this subscription", {
           transactionId: isPaymentExist.transactionId,
+          payment,
         });
       }
+      console.log("no");
       //citizen premium status update
       if (session.payment_status === "paid") {
         const email = session.metadata.citizenEmail;
         const query = { email: email };
         const updatedUser = { $set: { isPremium: true } };
         const modifiedUser = await userCollection.updateOne(query, updatedUser);
-        //payment collection for payment history
-        const payment = {
-          paymentType: "subscription",
-          transactionId: transactionId,
-          paymentMethod: session.metadata.paymentMethod,
-          paymentName: session.metadata.paymentName,
-          paymentStatus: session.payment_status,
-          currency: session.currency,
-          citizenEmail: session.customer_email,
-          paidAt: new Date(),
-          amount: session.amount_total / 100,
-        };
+
         const paymentResult = await paymentCollection.insertOne(payment);
         return responseSend(res, 200, "User updated with payment information", {
           paymentResult,
@@ -102,7 +98,7 @@ module.exports = (collections) => {
     }
   });
 
-  //get all payments by citizen
+  //get all  and latest payments by citizen
   router.get("/", verifyFireBaseToken, async (req, res) => {
     try {
       const email = req.decoded_email;
@@ -110,6 +106,7 @@ module.exports = (collections) => {
       if (!user) {
         return responseSend(res, 404, "User not found");
       }
+      const limit = Number(req.query.limit) || 0;
       let query = {};
       if (user?.role === "admin") {
         query = {};
@@ -119,6 +116,7 @@ module.exports = (collections) => {
       const result = await paymentCollection
         .find(query)
         .sort({ paidAt: -1 })
+        .limit(limit)
         .toArray();
 
       return responseSend(res, 200, "Successfully fetched payment data", {
@@ -318,5 +316,8 @@ module.exports = (collections) => {
       return responseSend(res, 400, "Failed to Check information");
     }
   });
+
+  //get latest payments for admin and citizen
+
   return router;
 };

@@ -94,10 +94,11 @@ module.exports = (collections) => {
     }
   });
 
-  //get filter issue by status and priority
+  //get filter issue by status and priority and by limit for latest issue
   router.get("/my-issues", verifyFireBaseToken, async (req, res) => {
     try {
       const email = req.decoded_email;
+      const limit = Number(req.query.limit) || 0;
       const { status, priority } = req.query;
 
       // find user
@@ -123,6 +124,7 @@ module.exports = (collections) => {
       const issues = await issueCollection
         .find(query)
         .sort({ createdAt: -1 })
+        .limit(limit)
         .toArray();
 
       return responseSend(res, 200, "Successfully fetched my issues", {
