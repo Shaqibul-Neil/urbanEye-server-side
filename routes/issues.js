@@ -490,7 +490,6 @@ module.exports = (collections) => {
             { $limit: 3 },
           ])
           .toArray();
-        console.log(result);
         return responseSend(
           res,
           200,

@@ -62,16 +62,13 @@ module.exports = (collections) => {
         amount: session.amount_total / 100,
       };
       const isPaymentExist = await paymentCollection.findOne(query);
-      console.log("isPaymentExist");
 
       if (isPaymentExist) {
-        console.log("yes");
         return responseSend(res, 200, "Already paid for this subscription", {
           transactionId: isPaymentExist.transactionId,
           payment,
         });
       }
-      console.log("no");
       //citizen premium status update
       if (session.payment_status === "paid") {
         const email = session.metadata.citizenEmail;
@@ -107,9 +104,11 @@ module.exports = (collections) => {
         return responseSend(res, 404, "User not found");
       }
       const limit = Number(req.query.limit) || 0;
+      const filterType = req.query.paymentType || "";
       let query = {};
       if (user?.role === "admin") {
-        query = {};
+        if (filterType) query.paymentType = filterType;
+        else query = {};
       } else if (user?.role === "citizen") {
         query = { citizenEmail: email };
       }

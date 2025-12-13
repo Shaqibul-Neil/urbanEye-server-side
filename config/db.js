@@ -10,7 +10,7 @@ const client = new MongoClient(process.env.DATABASE_URL, {
 
 const dbName = "urbanEyeDB";
 async function connectDB() {
-  await client.connect();
+  //await client.connect();
   console.log("MongoDB connected successfully");
   const db = client.db(dbName);
   return {

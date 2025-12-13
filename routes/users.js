@@ -53,11 +53,10 @@ module.exports = (collections) => {
   });
 
   //update user profile
-  router.patch("/my-profile", verifyFireBaseToken, async (req, res) => {
+  router.put("/my-profile", verifyFireBaseToken, async (req, res) => {
     try {
       const email = req.decoded_email;
       const { name, photoURL, role } = req.body;
-      console.log(name, photoURL, role, email);
       let result;
       if (role === "staff") {
         result = await staffCollection.updateOne(
@@ -82,10 +81,8 @@ module.exports = (collections) => {
           }
         );
       }
-      console.log(result);
       return responseSend(res, 200, "Profile updated", { profile: result });
     } catch (error) {
-      console.log(error);
       return responseSend(res, 400, "Profile update failed");
     }
   });
