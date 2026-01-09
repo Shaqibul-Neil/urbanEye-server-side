@@ -177,11 +177,7 @@ const deleteIssue = async (req, res, collections) => {
     // check issue ownership
     const fetchedIssue = await issueCollection.findOne(query);
     if (fetchedIssue.userEmail !== req.decoded_email)
-      return responseSend(
-        res,
-        403,
-        "Forbidden: You cannot delete this issue"
-      );
+      return responseSend(res, 403, "Forbidden: You cannot delete this issue");
     const result = await issueCollection.deleteOne(query);
     responseSend(res, 200, "Successfully deleted the issue", {
       issue: result,
@@ -502,7 +498,17 @@ const getTodayTaskStaff = async (req, res, collections) => {
       .find(query)
       .sort({ staffAssignedAt: -1 })
       .limit(3)
-      .project({ title: 1, photoURL: 1, staffAssignedAt: 1 })
+      .project({
+        title: 1,
+        photoURL: 1,
+        staffAssignedAt: 1,
+        createdAt: 1,
+        status: 1,
+        category: 1,
+        location: 1,
+        userEmail: 1,
+        priority: 1,
+      })
       .toArray();
     return responseSend(res, 200, "Successfully fetched today task", {
       tasks: result,
@@ -527,6 +533,11 @@ const getLatestResolvedStaff = async (req, res, collections) => {
             title: 1,
             trackingId: 1,
             photoURL: 1,
+            createdAt: 1,
+            category: 1,
+            location: 1,
+            userEmail: 1,
+            priority: 1,
             lastTimeline: { $arrayElemAt: ["$timeline", -1] },
           },
         },
@@ -625,6 +636,33 @@ const getLatestResolvedIssues = async (req, res, collections) => {
   }
 };
 
+// Get top upvoted issues
+const getTopUpvotedIssues = async (req, res, collections) => {
+  const { issueCollection } = collections;
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+
+    const result = await issueCollection
+      .find({ totalUpvoteCount: { $gt: 0 } })
+      .sort({ totalUpvoteCount: -1 })
+      .limit(limit)
+      .project({
+        title: 1,
+        totalUpvoteCount: 1,
+        category: 1,
+        location: 1,
+        status: 1,
+      })
+      .toArray();
+
+    return responseSend(res, 200, "Successfully fetched top upvoted issues", {
+      issues: result,
+    });
+  } catch (error) {
+    return responseSend(res, 400, "Failed to fetch top upvoted issues");
+  }
+};
+
 module.exports = {
   // Citizen actions
   createIssue,
@@ -635,21 +673,24 @@ module.exports = {
   getIssueDetails,
   upvoteIssue,
   checkUpvote,
-  
+
   // Admin actions
   assignStaff,
   rejectIssue,
   getStatusStats,
   getLatestIssuesAdmin,
-  
+
   // Staff actions
   getAssignedIssuesStaff,
   changeStatusStaff,
   getIssueAggregateStaff,
   getTodayTaskStaff,
   getLatestResolvedStaff,
-  
+
   // Public
   getPublicIssues,
-  getLatestResolvedIssues
+  getLatestResolvedIssues,
+
+  // Dashboard
+  getTopUpvotedIssues,
 };

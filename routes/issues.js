@@ -13,9 +13,9 @@ module.exports = (collections) => {
   router.get("/my-issues", verifyFireBaseToken, (req, res) => issuesController.getMyIssues(req, res, collections));
   router.patch("/:id", verifyFireBaseToken, (req, res) => issuesController.updateIssue(req, res, collections));
   router.delete("/:id", verifyFireBaseToken, (req, res) => issuesController.deleteIssue(req, res, collections));
-  router.get("/:id", verifyFireBaseToken, (req, res) => issuesController.getIssueDetails(req, res, collections));
   router.post("/:id/upvote", verifyFireBaseToken, (req, res) => issuesController.upvoteIssue(req, res, collections));
   router.get("/:id/check-upvote", verifyFireBaseToken, (req, res) => issuesController.checkUpvote(req, res, collections));
+  router.get("/:id", verifyFireBaseToken, (req, res) => issuesController.getIssueDetails(req, res, collections));
 
   //----------------ADMIN ACTIONS------------------
   router.patch("/:id/assign/admin", verifyFireBaseToken, verifyAdmin(collections), (req, res) => 
@@ -49,6 +49,7 @@ module.exports = (collections) => {
   //----------------PUBLIC------------------
   router.get("/public/all-issues", (req, res) => issuesController.getPublicIssues(req, res, collections));
   router.get("/latest/resolved-issues", (req, res) => issuesController.getLatestResolvedIssues(req, res, collections));
+  router.get("/top-upvoted", (req, res) => issuesController.getTopUpvotedIssues(req, res, collections));
 
   return router;
 };
