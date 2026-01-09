@@ -9,7 +9,7 @@ const verifyAdmin = (collections) => {
       const query = { email };
       const user = await userCollection.findOne(query);
       if (!user || user?.role !== "admin") {
-        return responseSend(res, 200, "Forbidden Access");
+        return responseSend(res, 403, "Forbidden Access");
       }
       next();
     } catch (error) {

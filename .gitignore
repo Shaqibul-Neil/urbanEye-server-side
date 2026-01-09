@@ -1,3 +1,4 @@
 node_modules
 .env
 urbaneye-25bfb-firebase-adminsdk.json
+.vercel

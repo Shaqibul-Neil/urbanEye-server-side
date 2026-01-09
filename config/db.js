@@ -11,7 +11,7 @@ const client = new MongoClient(process.env.DATABASE_URL, {
 const dbName = "urbanEyeDB";
 async function connectDB() {
   //await client.connect();
-  console.log("MongoDB connected successfully");
+  //console.log("MongoDB connected successfully");
   const db = client.db(dbName);
   return {
     userCollection: db.collection("users"),
@@ -19,6 +19,7 @@ async function connectDB() {
     issueCollection: db.collection("issues"),
     paymentCollection: db.collection("payments"),
     upvoteCollection: db.collection("upvotes"),
+    contentCollection: db.collection("contents"),
   };
 }
 
