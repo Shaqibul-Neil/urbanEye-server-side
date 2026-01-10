@@ -50,6 +50,7 @@ module.exports = (collections) => {
   router.get("/public/all-issues", (req, res) => issuesController.getPublicIssues(req, res, collections));
   router.get("/latest/resolved-issues", (req, res) => issuesController.getLatestResolvedIssues(req, res, collections));
   router.get("/top-upvoted", (req, res) => issuesController.getTopUpvotedIssues(req, res, collections));
+  router.get("/api/analytics/city-pulse", (req, res) => issuesController.getPulseStats(req, res, collections));
 
   return router;
 };

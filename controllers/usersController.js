@@ -147,7 +147,6 @@ const getLatestUsers = async (req, res, collections) => {
       .find()
       .sort({ createdAt: -1 })
       .limit(3)
-      .project({ displayName: 1, email: 1, photoURL: 1 })
       .toArray();
     return responseSend(res, 200, "Successfully fetched latest user data", {
       user: result,
@@ -164,5 +163,5 @@ module.exports = {
   getAllUsers,
   updateUserStatus,
   getUserRole,
-  getLatestUsers
+  getLatestUsers,
 };

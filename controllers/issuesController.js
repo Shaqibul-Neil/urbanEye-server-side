@@ -386,7 +386,6 @@ const getLatestIssuesAdmin = async (req, res, collections) => {
       .find()
       .sort({ createdAt: -1 })
       .limit(3)
-      .project({ title: 1, userEmail: 1, photoURL: 1 })
       .toArray();
     return responseSend(res, 200, "Successfully fetched issue data", {
       issue: result,
@@ -663,6 +662,96 @@ const getTopUpvotedIssues = async (req, res, collections) => {
   }
 };
 
+//get pulse stats on all issues for home page
+const getPulseStats = async (req, res, collections) => {
+  const { issueCollection } = collections;
+
+  try {
+    const result = await issueCollection
+      .aggregate([
+        {
+          $facet: {
+            // Count issues by status
+            statusCounts: [
+              {
+                $group: {
+                  _id: "$status",
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+
+            // Average resolution time (closed issues)
+            avgResolutionTime: [
+              { $match: { status: "closed" } },
+              {
+                $project: {
+                  createdAt: 1,
+                  resolvedAt: {
+                    $arrayElemAt: ["$timeline.at", -1],
+                  },
+                },
+              },
+              {
+                $project: {
+                  resolutionDays: {
+                    $divide: [
+                      { $subtract: ["$resolvedAt", "$createdAt"] },
+                      1000 * 60 * 60 * 24,
+                    ],
+                  },
+                },
+              },
+              {
+                $group: {
+                  _id: null,
+                  avgDays: { $avg: "$resolutionDays" },
+                },
+              },
+            ],
+
+            //  Category analytics
+            categories: [
+              {
+                $group: {
+                  _id: "$category",
+                  total: { $sum: 1 },
+                },
+              },
+              { $sort: { total: -1 } },
+            ],
+          },
+        },
+      ])
+      .toArray();
+
+    const data = result[0];
+
+    //  Normalize data for frontend
+    const pulseStats = {
+      open: data.statusCounts.find((s) => s._id === "pending")?.count || 0,
+
+      inProgress:
+        data.statusCounts.find((s) => s._id === "in-progress")?.count || 0,
+      working: data.statusCounts.find((s) => s._id === "working")?.count || 0,
+      resolved: data.statusCounts.find((s) => s._id === "resolved")?.count || 0,
+
+      avgResolutionTime: data.avgResolutionTime[0]?.avgDays?.toFixed(1) || "0",
+
+      categories:
+        data.categories.map((c) => ({
+          name: c._id,
+          total: c.total,
+        })) || [],
+    };
+
+    return responseSend(res, 200, "City pulse fetched", pulseStats);
+  } catch (error) {
+    console.error(error);
+    return responseSend(res, 500, "Failed to fetch city pulse");
+  }
+};
+
 module.exports = {
   // Citizen actions
   createIssue,
@@ -690,6 +779,7 @@ module.exports = {
   // Public
   getPublicIssues,
   getLatestResolvedIssues,
+  getPulseStats,
 
   // Dashboard
   getTopUpvotedIssues,
