@@ -156,6 +156,145 @@ const getLatestUsers = async (req, res, collections) => {
   }
 };
 
+// Get user statistics for profile
+const getUserStats = async (req, res, collections) => {
+  const { userCollection, issueCollection } = collections;
+  try {
+    const { email } = req.params;
+
+    // Verify user exists
+    const user = await userCollection.findOne({ email });
+    if (!user) {
+      return responseSend(res, 404, "User not found");
+    }
+
+    // Get user's issues
+    const userIssues = await issueCollection
+      .find({ userEmail: email })
+      .toArray();
+
+    // Basic stats
+    const totalIssues = userIssues.length;
+    const resolvedIssues = userIssues.filter(
+      (issue) => issue.status === "resolved"
+    ).length;
+    const pendingIssues = userIssues.filter(
+      (issue) => issue.status === "pending"
+    ).length;
+
+    // Map resolved issues safely with resolved date
+    const resolvedIssuesWithTime = userIssues
+      .map((issue) => {
+        const resolvedEvent = issue.timeline?.find(
+          (t) => t.action === "Status changed to resolved"
+        );
+
+        //console.log("resolvedEvent", resolvedEvent);
+        if (resolvedEvent && issue.createdAt) {
+          const createdDate = new Date(issue.createdAt);
+          //console.log("createdDate", createdDate);
+          const resolvedDate = new Date(resolvedEvent.at);
+          //console.log("resolvedDate", resolvedDate);
+          if (!isNaN(createdDate) && !isNaN(resolvedDate)) {
+            return { ...issue, createdDate, resolvedDate };
+          }
+        }
+        return null;
+      })
+      .filter(Boolean);
+    //console.log("resolvedIssuesWithTime", resolvedIssuesWithTime);
+    // Average resolution time
+    // Average resolution time with smart formatting
+    let avgResolutionTime = 0;
+    if (resolvedIssuesWithTime.length > 0) {
+      const totalResolutionTime = resolvedIssuesWithTime.reduce(
+        (sum, issue) => sum + (issue.resolvedDate - issue.createdDate),
+        0
+      );
+
+      // Calculate exact days (with decimals)
+      const exactDays =
+        totalResolutionTime /
+        resolvedIssuesWithTime.length /
+        (1000 * 60 * 60 * 24);
+
+      //console.log("exactDays:", exactDays);
+
+      // If less than 1 day, show with 1 decimal place
+      // If 1 day or more, show as whole number
+      if (exactDays < 1) {
+        avgResolutionTime = Math.round(exactDays * 10) / 10; // 1 decimal place
+      } else {
+        avgResolutionTime = Math.round(exactDays); // whole number
+      }
+
+      //console.log("avgResolutionTime:", avgResolutionTime);
+    }
+
+    // Most active month
+    const monthCounts = {};
+    userIssues.forEach((issue) => {
+      const month = new Date(issue.createdAt).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+      });
+      monthCounts[month] = (monthCounts[month] || 0) + 1;
+    });
+    const mostActiveMonth = Object.keys(monthCounts).reduce(
+      (a, b) => (monthCounts[a] > monthCounts[b] ? a : b),
+      Object.keys(monthCounts)[0] || "N/A"
+    );
+
+    // Most common category
+    const categoryCounts = {};
+    userIssues.forEach((issue) => {
+      categoryCounts[issue.category] =
+        (categoryCounts[issue.category] || 0) + 1;
+    });
+    const mostCommonCategory = Object.keys(categoryCounts).reduce(
+      (a, b) => (categoryCounts[a] > categoryCounts[b] ? a : b),
+      Object.keys(categoryCounts)[0] || "N/A"
+    );
+
+    // Activity trend last 6 months
+    const activityTrend = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+      const count = userIssues.filter((issue) => {
+        const issueDate = new Date(issue.createdAt);
+        return issueDate >= monthStart && issueDate <= monthEnd;
+      }).length;
+
+      activityTrend.push({
+        date: date.toLocaleDateString("en-US", {
+          month: "short",
+          year: "numeric",
+        }),
+        count,
+      });
+    }
+
+    const stats = {
+      totalIssues,
+      resolvedIssues,
+      pendingIssues,
+      avgResolutionTime,
+      mostActiveMonth,
+      mostCommonCategory,
+      activityTrend,
+    };
+
+    return responseSend(res, 200, "User stats fetched successfully", { stats });
+  } catch (error) {
+    //console.error("Error fetching user stats:", error);
+    return responseSend(res, 500, "Failed to fetch user stats");
+  }
+};
+
 module.exports = {
   createUser,
   getUserInfo,
@@ -164,4 +303,5 @@ module.exports = {
   updateUserStatus,
   getUserRole,
   getLatestUsers,
+  getUserStats,
 };

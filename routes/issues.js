@@ -46,6 +46,14 @@ module.exports = (collections) => {
     issuesController.getLatestResolvedStaff(req, res, collections)
   );
 
+  // Profile statistics
+  router.get("/admin/platform-stats", verifyFireBaseToken, verifyAdmin(collections), (req, res) => 
+    issuesController.getAdminPlatformStats(req, res, collections)
+  );
+  router.get("/staff/:email/performance-stats", verifyFireBaseToken, verifyStaff(collections), (req, res) => 
+    issuesController.getStaffPerformanceStats(req, res, collections)
+  );
+
   //----------------PUBLIC------------------
   router.get("/public/all-issues", (req, res) => issuesController.getPublicIssues(req, res, collections));
   router.get("/latest/resolved-issues", (req, res) => issuesController.getLatestResolvedIssues(req, res, collections));

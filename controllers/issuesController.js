@@ -61,15 +61,23 @@ const getAllIssues = async (req, res, collections) => {
   const { userCollection, issueCollection } = collections;
   try {
     const email = req.decoded_email;
-    const searchText = req.query.searchText;
+    const searchText = req.query.searchText || "";
+    const limit = Number(req.query.limit) || 10;
+    const skip = Number(req.query.skip) || 0;
+    const status = req.query.status || "";
+    const sortBy = req.query.sortBy || "date-desc";
+
     //find the user
     const user = await userCollection.findOne({ email });
     let query = {};
+
     if (user.role === "citizen") {
       query.userEmail = email;
     } else if (user.role === "admin") {
       query = {};
     }
+
+    // Search filter
     if (searchText) {
       query.$or = [
         { title: { $regex: searchText, $options: "i" } },
@@ -77,12 +85,62 @@ const getAllIssues = async (req, res, collections) => {
         { category: { $regex: searchText, $options: "i" } },
       ];
     }
+
+    // Status filter
+    if (status && status !== "all") {
+      query.status = { $in: status.split(",") };
+    }
+
+    // Sort configuration
+    let sortConfig = {};
+    switch (sortBy) {
+      case "date-desc":
+        sortConfig = { createdAt: -1 };
+        break;
+      case "date-asc":
+        sortConfig = { createdAt: 1 };
+        break;
+      case "priority-high":
+        sortConfig = { priority: 1, createdAt: -1 };
+        break;
+      case "priority-low":
+        sortConfig = { priority: -1, createdAt: -1 };
+        break;
+      case "title-asc":
+        sortConfig = { title: 1 };
+        break;
+      case "title-desc":
+        sortConfig = { title: -1 };
+        break;
+      case "status":
+        sortConfig = { status: 1, createdAt: -1 };
+        break;
+      default:
+        sortConfig = { createdAt: -1 };
+    }
+
+    // Get total count for pagination
+    const totalIssues = await issueCollection.countDocuments(query);
+    const totalPages = Math.ceil(totalIssues / limit);
+
+    // Get paginated results
     const result = await issueCollection
       .find(query)
-      .sort({ priority: 1 })
+      .sort(sortConfig)
+      .skip(skip)
+      .limit(limit)
       .toArray();
+
     return responseSend(res, 200, "Successfully fetched issue data", {
       issue: result,
+      pagination: {
+        totalIssues,
+        totalPages,
+        currentPage: Math.floor(skip / limit),
+        limit,
+        hasNext: skip + limit < totalIssues,
+        hasPrev: skip > 0,
+      },
     });
   } catch (error) {
     return responseSend(res, 400, "Failed to fetch issue data");
@@ -94,8 +152,10 @@ const getMyIssues = async (req, res, collections) => {
   const { userCollection, issueCollection } = collections;
   try {
     const email = req.decoded_email;
-    const limit = Number(req.query.limit) || 0;
-    const { status, priority } = req.query;
+    const searchText = req.query.searchText || "";
+    const limit = Number(req.query.limit) || 10;
+    const skip = Number(req.query.skip) || 0;
+    const { status, priority, sortBy = "date-desc" } = req.query;
 
     // find user
     const user = await userCollection.findOne({ email });
@@ -107,24 +167,75 @@ const getMyIssues = async (req, res, collections) => {
       userEmail: email,
     };
 
+    // Search filter
+    if (searchText) {
+      query.$or = [
+        { title: { $regex: searchText, $options: "i" } },
+        { location: { $regex: searchText, $options: "i" } },
+        { category: { $regex: searchText, $options: "i" } },
+      ];
+    }
+
     // status filter
-    if (status) {
+    if (status && status !== "all") {
       query.status = { $in: status.split(",") };
     }
 
     // priority filter
-    if (priority) {
+    if (priority && priority !== "all") {
       query.priority = { $in: priority.split(",") };
     }
 
+    // Sort configuration
+    let sortConfig = {};
+    switch (sortBy) {
+      case "date-desc":
+        sortConfig = { createdAt: -1 };
+        break;
+      case "date-asc":
+        sortConfig = { createdAt: 1 };
+        break;
+      case "priority-high":
+        sortConfig = { priority: 1, createdAt: -1 };
+        break;
+      case "priority-low":
+        sortConfig = { priority: -1, createdAt: -1 };
+        break;
+      case "title-asc":
+        sortConfig = { title: 1 };
+        break;
+      case "title-desc":
+        sortConfig = { title: -1 };
+        break;
+      case "status":
+        sortConfig = { status: 1, createdAt: -1 };
+        break;
+      default:
+        sortConfig = { createdAt: -1 };
+    }
+
+    // Get total count for pagination
+    const totalIssues = await issueCollection.countDocuments(query);
+    const totalPages = Math.ceil(totalIssues / limit);
+
+    // Get paginated results
     const issues = await issueCollection
       .find(query)
-      .sort({ createdAt: -1 })
+      .sort(sortConfig)
+      .skip(skip)
       .limit(limit)
       .toArray();
 
     return responseSend(res, 200, "Successfully fetched my issues", {
       issue: issues,
+      pagination: {
+        totalIssues,
+        totalPages,
+        currentPage: Math.floor(skip / limit),
+        limit,
+        hasNext: skip + limit < totalIssues,
+        hasPrev: skip > 0,
+      },
     });
   } catch (error) {
     return responseSend(res, 400, "Failed to fetch issues");
@@ -400,20 +511,80 @@ const getLatestIssuesAdmin = async (req, res, collections) => {
 const getAssignedIssuesStaff = async (req, res, collections) => {
   const { issueCollection } = collections;
   try {
-    const { staffEmail, status, priority } = req.query;
+    const {
+      staffEmail,
+      status,
+      searchText = "",
+      limit = 10,
+      skip = 0,
+      sortBy = "date-desc",
+    } = req.query;
+
     if (!staffEmail) {
       return responseSend(res, 400, "Staff Email is required");
     }
+
     const query = { "assignedStaff.staffEmail": staffEmail };
 
+    // Status filter
     if (status) query.status = status;
-    if (priority) query.priority = priority;
+
+    // Search filter
+    if (searchText) {
+      query.$or = [
+        { title: { $regex: searchText, $options: "i" } },
+        { location: { $regex: searchText, $options: "i" } },
+        { category: { $regex: searchText, $options: "i" } },
+      ];
+    }
+
+    // Sort configuration
+    let sortConfig = {};
+    switch (sortBy) {
+      case "date-desc":
+        sortConfig = { createdAt: -1 };
+        break;
+      case "date-asc":
+        sortConfig = { createdAt: 1 };
+        break;
+      case "priority-high":
+        sortConfig = { priority: 1, createdAt: -1 };
+        break;
+      case "priority-low":
+        sortConfig = { priority: -1, createdAt: -1 };
+        break;
+      case "title-asc":
+        sortConfig = { title: 1 };
+        break;
+      case "title-desc":
+        sortConfig = { title: -1 };
+        break;
+      default:
+        sortConfig = { priority: 1, createdAt: -1 };
+    }
+
+    // Get total count for pagination
+    const totalIssues = await issueCollection.countDocuments(query);
+    const totalPages = Math.ceil(totalIssues / Number(limit));
+
+    // Get paginated results
     const issues = await issueCollection
       .find(query)
-      .sort({ priority: 1 })
+      .sort(sortConfig)
+      .skip(Number(skip))
+      .limit(Number(limit))
       .toArray();
+
     return responseSend(res, 200, "Successfully fetched issue data", {
       issues: issues,
+      pagination: {
+        totalIssues,
+        totalPages,
+        currentPage: Math.floor(Number(skip) / Number(limit)),
+        limit: Number(limit),
+        hasNext: Number(skip) + Number(limit) < totalIssues,
+        hasPrev: Number(skip) > 0,
+      },
     });
   } catch (error) {
     return responseSend(res, 400, "Failed to fetch issue data");
@@ -484,6 +655,257 @@ const getIssueAggregateStaff = async (req, res, collections) => {
         dataAggregate: result,
       }
     );
+  }
+};
+
+// Get admin platform statistics
+const getAdminPlatformStats = async (req, res, collections) => {
+  const { issueCollection, userCollection, staffCollection } = collections;
+  try {
+    // Get all issues for platform stats
+    const allIssues = await issueCollection.find({}).toArray();
+
+    // Calculate basic stats
+    const totalIssuesManaged = allIssues.length;
+    const totalResolved = allIssues.filter(
+      (issue) => issue.status === "resolved"
+    ).length;
+
+    // Get active staff count
+    const activeStaffCount = await staffCollection.countDocuments({});
+
+    // Get total citizens
+    const totalCitizens = await userCollection.countDocuments({
+      role: "citizen",
+    });
+
+    // Calculate citizen participation rate (citizens who have posted issues)
+    const activeCitizens = await issueCollection
+      .aggregate([
+        {
+          $group: {
+            _id: "$userEmail",
+          },
+        },
+      ])
+      .toArray();
+    const citizenParticipationRate =
+      totalCitizens > 0
+        ? Math.round((activeCitizens.length / totalCitizens) * 100)
+        : 0;
+
+    // Generate platform activity trend (last 6 months)
+    const platformActivityTrend = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+      const count = allIssues.filter((issue) => {
+        const issueDate = new Date(issue.createdAt);
+        return issueDate >= monthStart && issueDate <= monthEnd;
+      }).length;
+
+      platformActivityTrend.push({
+        date: date.toLocaleDateString("en-US", {
+          month: "short",
+          year: "numeric",
+        }),
+        count,
+      });
+    }
+
+    // Calculate resolution rate
+    const resolutionRate =
+      totalIssuesManaged > 0
+        ? Math.round((totalResolved / totalIssuesManaged) * 100)
+        : 0;
+
+    // Calculate average resolution time
+    const resolvedIssuesWithTime = allIssues
+      .filter(
+        (issue) => issue.status === "resolved" && Array.isArray(issue.timeline)
+      )
+      .map((issue) => {
+        const createdAt = issue.createdAt ? new Date(issue.createdAt) : null;
+
+        const resolvedEvent = issue.timeline.find(
+          (t) => t.action === "Status changed to resolved"
+        );
+
+        const resolvedAt = resolvedEvent?.at
+          ? new Date(resolvedEvent.at)
+          : null;
+
+        if (!createdAt || !resolvedAt) return null;
+
+        return {
+          createdAt,
+          resolvedAt,
+        };
+      })
+      .filter(Boolean);
+
+    //console.log(resolvedIssuesWithTime);
+    let avgResolutionTime = 0;
+    if (resolvedIssuesWithTime.length > 0) {
+      const totalResolutionTime = resolvedIssuesWithTime.reduce(
+        (sum, issue) => sum + (issue.resolvedAt - issue.createdAt),
+        0
+      );
+
+      avgResolutionTime = Math.round(
+        totalResolutionTime /
+          resolvedIssuesWithTime.length /
+          (1000 * 60 * 60 * 24)
+      );
+    }
+
+    const stats = {
+      totalIssuesManaged,
+      totalResolved,
+      activeStaffCount,
+      citizenParticipationRate,
+      platformActivityTrend,
+      resolutionRate,
+      avgResolutionTime,
+    };
+
+    return responseSend(res, 200, "Admin platform stats fetched successfully", {
+      stats,
+    });
+  } catch (error) {
+    //console.error("Error fetching admin platform stats:", error);
+    return responseSend(res, 500, "Failed to fetch admin platform stats");
+  }
+};
+
+// Get staff performance statistics
+const getStaffPerformanceStats = async (req, res, collections) => {
+  const { issueCollection } = collections;
+  try {
+    const { email } = req.params;
+
+    // Get staff's assigned issues
+    const staffIssues = await issueCollection
+      .find({
+        "assignedStaff.staffEmail": email,
+      })
+      .toArray();
+
+    // Calculate basic stats
+    const assignedIssues = staffIssues.length;
+    const resolvedIssues = staffIssues.filter(
+      (issue) => issue.status === "resolved"
+    ).length;
+    const pendingIssues = staffIssues.filter(
+      (issue) =>
+        issue.status === "pending" ||
+        issue.status === "in-progress" ||
+        issue.status === "working"
+    ).length;
+
+    // Calculate average resolution time
+    const resolvedIssuesWithTime = staffIssues
+      .map((issue) => {
+        const resolvedEvent = issue.timeline.find((t) =>
+          t.action.toLowerCase().includes("resolved")
+        );
+        if (resolvedEvent) return { ...issue, resolvedAt: resolvedEvent.at };
+        return null;
+      })
+      .filter(Boolean);
+
+    let avgResolutionTime = 0;
+    if (resolvedIssuesWithTime.length > 0) {
+      const totalResolutionTime = resolvedIssuesWithTime.reduce(
+        (sum, issue) => {
+          const createdDate = new Date(issue.createdAt);
+          const resolvedDate = new Date(issue.resolvedAt);
+          return sum + (resolvedDate - createdDate);
+        },
+        0
+      );
+
+      avgResolutionTime = Math.round(
+        totalResolutionTime /
+          resolvedIssuesWithTime.length /
+          (1000 * 60 * 60 * 24)
+      );
+    }
+
+    // Generate resolution trend (last 6 months)
+    const resolutionTrend = [];
+    const now = new Date();
+
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+      const count = resolvedIssuesWithTime.filter((issue) => {
+        const resolvedDate = new Date(issue.resolvedAt);
+        return resolvedDate >= monthStart && resolvedDate <= monthEnd;
+      }).length;
+
+      resolutionTrend.push({
+        date: date.toLocaleDateString("en-US", {
+          month: "short",
+          year: "numeric",
+        }),
+        count,
+      });
+    }
+
+    // Find best performance day (day of week with most resolutions)
+    const dayResolutions = {};
+    const dayNames = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+
+    resolvedIssuesWithTime.forEach((issue) => {
+      const dayOfWeek = new Date(issue.resolvedAt).getDay();
+      const dayName = dayNames[dayOfWeek];
+      dayResolutions[dayName] = (dayResolutions[dayName] || 0) + 1;
+    });
+
+    const bestPerformanceDay = Object.keys(dayResolutions).reduce(
+      (a, b) => (dayResolutions[a] > dayResolutions[b] ? a : b),
+      Object.keys(dayResolutions)[0] || "N/A"
+    );
+    //console.log(bestPerformanceDay);
+    // Calculate resolution consistency (percentage of months with resolutions)
+    const monthsWithResolutions = resolutionTrend.filter(
+      (month) => month.count > 0
+    ).length;
+    const resolutionConsistency = Math.round((monthsWithResolutions / 6) * 100);
+    //console.log(resolutionConsistency);
+    const stats = {
+      assignedIssues,
+      resolvedIssues,
+      pendingIssues,
+      avgResolutionTime,
+      resolutionTrend,
+      bestPerformanceDay,
+      resolutionConsistency,
+    };
+
+    return responseSend(
+      res,
+      200,
+      "Staff performance stats fetched successfully",
+      { stats }
+    );
+  } catch (error) {
+    //console.error("Error fetching staff performance stats:", error);
+    return responseSend(res, 500, "Failed to fetch staff performance stats");
   }
 };
 
@@ -618,7 +1040,7 @@ const getLatestResolvedIssues = async (req, res, collections) => {
     const result = await issueCollection
       .find(query)
       .sort({ updatedAt: -1 }) //latest resolved
-      .limit(6)
+      .limit(8)
       .project({
         description: 0,
         isAssignedStaff: 0,
@@ -730,12 +1152,13 @@ const getPulseStats = async (req, res, collections) => {
     //  Normalize data for frontend
     const pulseStats = {
       open: data.statusCounts.find((s) => s._id === "pending")?.count || 0,
-
       inProgress:
         data.statusCounts.find((s) => s._id === "in-progress")?.count || 0,
       working: data.statusCounts.find((s) => s._id === "working")?.count || 0,
       resolved: data.statusCounts.find((s) => s._id === "resolved")?.count || 0,
-
+      closed: data.statusCounts.find((s) => s._id === "closed")?.count || 0,
+      rejected: data.statusCounts.find((s) => s._id === "rejected")?.count || 0,
+      total: data.statusCounts.reduce((acc, curr) => acc + curr.count, 0),
       avgResolutionTime: data.avgResolutionTime[0]?.avgDays?.toFixed(1) || "0",
 
       categories:
@@ -747,7 +1170,7 @@ const getPulseStats = async (req, res, collections) => {
 
     return responseSend(res, 200, "City pulse fetched", pulseStats);
   } catch (error) {
-    console.error(error);
+    //console.error(error);
     return responseSend(res, 500, "Failed to fetch city pulse");
   }
 };
@@ -773,6 +1196,8 @@ module.exports = {
   getAssignedIssuesStaff,
   changeStatusStaff,
   getIssueAggregateStaff,
+  getAdminPlatformStats,
+  getStaffPerformanceStats,
   getTodayTaskStaff,
   getLatestResolvedStaff,
 

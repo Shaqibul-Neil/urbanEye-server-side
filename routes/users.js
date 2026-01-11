@@ -23,5 +23,10 @@ module.exports = (collections) => {
     usersController.getLatestUsers(req, res, collections)
   );
 
+  // Profile statistics
+  router.get("/:email/stats", verifyFireBaseToken, (req, res) => 
+    usersController.getUserStats(req, res, collections)
+  );
+
   return router;
 };
