@@ -19,7 +19,7 @@ const getBannerSection = async (req, res, collections) => {
           description:
             "A living civic intelligence system that tracks, visualizes, and resolves urban issues in real time — powered by community data.",
           primaryButtonText: "Explore Issues",
-          secondaryButtonText: "Report an Issue",
+          secondaryButtonText: "View City Pulse",
           stat1Value: "2.4K+",
           stat1Label: "Issues Tracked",
           stat2Value: "87%",
@@ -33,10 +33,10 @@ const getBannerSection = async (req, res, collections) => {
             textAlign: "leading-tight",
           },
           highlightText1: {
-            color: "text-indigo-400",
+            color: "text-blue-400",
           },
           highlightText2: {
-            color: "text-purple-400",
+            color: "text-gray-400",
           },
           description: {
             fontSize: "text-lg",
@@ -84,7 +84,9 @@ const getAboutSection = async (req, res, collections) => {
             fontSize: "text-4xl md:text-5xl",
             fontWeight: "font-extrabold",
             textAlign: "text-right",
-            color: "text-primary",
+            gradient:
+              "bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 bg-clip-text text-transparent",
+            color: "",
             padding: "",
             margin: "",
           },
@@ -213,7 +215,9 @@ const getFeaturesSection = async (req, res, collections) => {
           mainHeading: {
             fontSize: "text-4xl md:text-5xl",
             fontWeight: "font-extrabold",
-            color: "text-primary",
+            gradient:
+              "bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 bg-clip-text text-transparent",
+            color: "",
           },
           highlightText: {
             color: "text-secondary",
